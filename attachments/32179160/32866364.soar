@@ -1,0 +1,39 @@
+#
+# Example code
+#
+
+sp "propose*my-operator
+   (state <s> ^superstate nil)
+-->
+   (<s> ^operator <o> +)
+   (<o> ^name my-operator)
+"
+
+# this will not work
+sp "my-operator*elaborate*default-value*0
+   (state <s> ^operator <o>)
+   (<o> ^name my-operator
+       -^value)
+-->
+   (<o> ^value 0)
+"
+
+sp "monitor*value-present
+   (state <s> ^operator.value <v>)
+-->
+   (write (crlf) |value = |<v>)
+"
+
+sp "monitor*value-not-present
+   (state <s> ^operator <o>)
+   (<o> ^value <v>)
+-->
+   (write (crlf) |value not present|)
+"
+
+# this is just to prevent a state no-change cascade
+sp "stop
+   (state <s> ^operator <o>)
+-->
+   (interrupt)
+"

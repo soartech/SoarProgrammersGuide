@@ -1,0 +1,82 @@
+
+#
+# Example code
+#
+
+sp "propose*my-goal1
+   (state <s> ^superstate nil
+             -^my-goal1-complete true)
+-->
+   (<s> ^operator <o> + =)
+   (<o> ^name my-goal1)
+"
+
+sp "my-goal1*propose*init
+   (state <s> ^name my-goal1
+             -^initialized true)
+-->
+   (<s> ^operator <o> +)
+   (<o> ^name init)
+   (write (crlf) |Proposing my-goal1's init|)
+"
+ 
+sp "my-goal1*apply*init
+   (state <s> ^name my-goal1
+              ^operator.name init
+              ^superstate <ss>)
+-->
+   (<s> ^initialized true
+        ^color blue)
+   (<ss> ^my-goal1-complete true)
+   (write (crlf) |Applying my-goal1's init|)
+"
+
+
+sp "propose*my-goal2
+   (state <s> ^superstate nil
+             -^my-goal2-complete true)
+-->
+   (<s> ^operator <o> + =)
+   (<o> ^name my-goal2)
+"
+ 
+sp "my-goal2*propose*init
+   (state <s> ^name my-goal2
+             -^initialized true)
+-->
+   (<s> ^operator <o> +)
+   (<o> ^name init)
+   (write (crlf) |Proposing my-goal2's init|)
+"
+
+sp "my-goal2*apply*init
+   (state <s> ^name my-goal2
+              ^operator.name init
+              ^superstate <ss>)
+-->
+   (<s> ^initialized true
+        ^color red)
+   (<ss> ^my-goal2-complete true)
+   (write (crlf) |Applying my-goal2's init|)
+"
+
+sp "stop
+   (state <s> ^my-goal1-complete true
+              ^my-goal2-complete true)
+-->
+   (write (crlf) |Example complete|)
+   (interrupt)
+"
+
+#
+# Supporting utility code
+#
+
+##!
+# @brief Appends the name of the selected operator that triggered us.
+# @type state-elaboration
+sp {elaborate*state*name
+   (state <s> ^superstate.operator.name <name>)
+-->
+   (<s> ^name <name>)
+}

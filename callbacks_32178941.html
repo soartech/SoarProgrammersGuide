@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Bob Marinier : callbacks</title>
+        <link rel="stylesheet" href="styles/site.css" type="text/css" />
+        <META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    </head>
+
+    <body class="theme-default aui-theme-default">
+        <div id="page">
+            <div id="main" class="aui-page-panel">
+                <div id="main-header">
+                    <div id="breadcrumb-section">
+                        <ol id="breadcrumbs">
+                            <li class="first">
+                                <span><a href="index.html">Bob Marinier</a></span>
+                            </li>
+                                                    <li>
+                                <span><a href="31654126.html">Soar Programmer&#39;s Guide</a></span>
+                            </li>
+                                                </ol>
+                    </div>
+                    <h1 id="title-heading" class="pagetitle">
+                                                <span id="title-text">
+                            Bob Marinier : callbacks
+                        </span>
+                    </h1>
+                </div>
+
+                <div id="content" class="view">
+                    <div class="page-metadata">
+                                                Added by  bob.marinier , edited by  bob.marinier  on Apr 09, 2015
+                    </div>
+                    <div id="main-content" class="wiki-content group">
+                    <h1 id="callbacks-Introduction">Introduction</h1><p>The section on <a href="generic-processes_32178933.html">generic processes</a> discussed how to create reusable subgoals. There, we talked about how to allow callers to specify where a result should go. Here we take that to a whole new level and allow callers to specify what operators to propose in the subgoal. In other words, how to allow callers to define callbacks.</p><p>As usual, everything here applies to both Michigan style and NGS, although the particular example I'll use is Michigan style.</p><h1 id="callbacks-Approach:Nametheoperatorstoproposeinthegoalarguments">Approach: Name the operators to propose in the goal arguments</h1><p>The approach is really simple: implement the apply for the operator you want to be called by the subgoal, and then pass the name of it to the subgoal when its created. The subgoal will propose an operator with that name, and then your apply will fire. Of course, there's no reason why the callback couldn't be an entire other subgoal.</p><p>This example is of a subgoal that performs a semantic memory retrieval and then calls one of two different callbacks depending on whether the retrieval succeeds or fails. Each callback also has optional user data that is sent to the callback when it is triggered. (Note, this is a simplified version of an actual subgoal I use for this – the difference is the full subgoal also supports fully expanding the retrieved LTI.)</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;"># retrieve-smem/elaborations.soar
+
+##!
+# @brief If the caller did not supply user-data, set to default value nil
+# @type state-elaboration
+sp &quot;retrieve-smem*elaborate*user-data-nil
+   (state &lt;s&gt; ^name retrieve-smem
+              ^args.&lt;&lt; on-success on-failure &gt;&gt; &lt;osf&gt;)
+  -(&lt;osf&gt; ^user-data &lt;&gt; nil)
+--&gt;
+   (&lt;osf&gt; ^user-data nil)
+&quot;
+
+##!
+# @brief If there is an smem failure, flag that. This allows multiple failure results to be mapped to one flag.
+# @type state-elaboration
+sp &quot;retrieve-smem*elaborate*failure
+   (state &lt;s&gt; ^name retrieve-smem
+              ^smem.result.failure)
+--&gt;
+   (&lt;s&gt; ^retrieval-failed true)
+&quot;
+
+#
+# retrieve-smem/execute-command.soar
+#
+
+##!
+# @brief
+# @type proposal
+sp &quot;retrieve-smem*propose*execute-command
+   (state &lt;s&gt; ^name retrieve-smem
+              ^smem.command &lt;cmd&gt;
+              ^args.command &lt;argcmd&gt;)
+  -(&lt;cmd&gt; ^&lt;any&gt;)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name execute-command
+        ^command &lt;argcmd&gt;)
+&quot;
+
+##!
+# @brief This could apply multiple times, e.g. if there is both a query and a neg-query
+# @type apply
+sp &quot;apply*execute-command
+   (state &lt;s&gt; ^operator &lt;o&gt;
+              ^smem.command &lt;cmd&gt;)
+   (&lt;o&gt; ^name execute-command
+        ^command &lt;argcmd&gt;)
+   (&lt;argcmd&gt; ^&lt;att&gt; &lt;val&gt;)
+--&gt;
+   (&lt;cmd&gt; ^&lt;att&gt; &lt;val&gt;)
+&quot;
+
+#
+# retrieve-smem/on-failure.soar
+#
+
+##!
+# @brief
+# @type proposal
+sp &quot;retrieve-smem*propose*on-failure
+   (state &lt;s&gt; ^name retrieve-smem
+              ^retrieval-failed true
+              ^args.on-failure &lt;of&gt;)
+   (&lt;of&gt; ^operator-name &lt;op-name&gt;
+         ^user-data &lt;data&gt;)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name &lt;op-name&gt;
+        ^result nil
+        ^user-data &lt;data&gt;)
+&quot;
+
+# apply supplied by caller
+
+#
+# retrieve-smem/on-success.soar
+#
+
+##!
+# @brief
+# @type proposal
+sp &quot;retrieve-smem*propose*on-success
+   (state &lt;s&gt; ^name retrieve-smem
+              ^smem.result.retrieved &lt;result&gt;
+              ^args.on-success &lt;os&gt;)
+   (&lt;os&gt; ^operator-name &lt;op-name&gt;
+         ^user-data &lt;data&gt;)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name &lt;op-name&gt;
+        ^result &lt;result&gt;
+        ^user-data &lt;data&gt;)
+&quot;
+
+# apply rule supplied by caller</pre>
+</div></div><p>With floating subgoals like this, it is generally advisable to document how to use them somewhere. For example:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">#
+# retrieve-smem.soar
+#
+
+# this is a floating operator
+# to trigger, propose the retrieve-smem operator
+# 
+# ^command: the smem command to use
+# ^on-success:
+#   ^operator-name: name of the operator to propose if retrieval succeeds (after expansion complete, if applicable)
+#                   the operator will be passed a ^result pointing to the retrieval and the user-data structure
+#   ^user-data: a structure to pass to the proposed operator
+# ^on-failure:
+#   ^operator-name: name of the operator to propose if retrieval fails
+#                   the operator will be passed ^result nil and the user-data structure
+#   ^user-data: a structure to pass to the proposed operator
+#
+# this creates a substate that queries smem using the given command and then proposes user-defined operators depending on whether the retrieval succeeded or not.</pre>
+</div></div><p>As described by the documentation, then, you could call this subgoal like this (note, you have to define the callbacks, too):</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;apply*my-failure-callback
+   (state &lt;s&gt; ^operator &lt;o&gt;)
+   (&lt;o&gt; ^name my-failure-callback
+        ^user-data.id &lt;id&gt;)
+--&gt;
+   (&lt;id&gt; ^retrieved nil)
+&quot;
+
+sp &quot;apply*my-success-callback
+   (state &lt;s&gt; ^operator &lt;o&gt;)
+   (&lt;o&gt; ^name my-success-callback
+        ^result &lt;result&gt;
+        ^user-data.id &lt;id&gt;)
+--&gt;
+   (&lt;id&gt; ^retrieved &lt;result&gt;)
+&quot;
+
+sp &quot;my-goal*propose*retrieve-smem
+   (state &lt;s&gt; ^name my-goal
+             -^retrieved)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name retrieve-smem
+        ^command &lt;cmd&gt;
+        ^on-success &lt;os&gt;
+        ^on-failure &lt;of&gt;)
+   (&lt;cmd&gt; ^query.type foo
+          ^neg-query.value bar)
+   (&lt;os&gt; ^operator-name my-success-callback
+         ^user-data.id &lt;s&gt;)
+   (&lt;of&gt; ^operator-name my-failure-callback
+         ^user-data.id &lt;s&gt;)
+&quot;</pre>
+</div></div><p>In this example, an smem command with both a query and neg-query is given, with two different callbacks used (in general, there's no reason the same callback couldn't be used for both). The callbacks in this case save the result to a specified location (nil on failure).</p><p>For simple usage like this, callbacks may be overkill. But in actual practice, I have taken advantage of the flexibility of callbacks to do more complex things than just save a result. For example, setting other flags, logging a message, etc. Using callbacks allows the core subgoal to remain simple – the alternative would be to try to build in optional support for anything someone might ever want to do. This quickly becomes cumbersome and results in code that is difficult to understand and maintain. Callbacks keep that complexity in the caller-specific code.</p>
+                    </div>
+
+                    
+                 
+                </div>             </div> 
+            <div id="footer">
+                <section class="footer-body">
+                    <p>Document generated by Confluence on May 05, 2015 16:08</p>
+                </section>
+            </div>
+        </div>     </body>
+</html>

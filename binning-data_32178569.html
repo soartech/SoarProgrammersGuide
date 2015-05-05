@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Bob Marinier : binning data</title>
+        <link rel="stylesheet" href="styles/site.css" type="text/css" />
+        <META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    </head>
+
+    <body class="theme-default aui-theme-default">
+        <div id="page">
+            <div id="main" class="aui-page-panel">
+                <div id="main-header">
+                    <div id="breadcrumb-section">
+                        <ol id="breadcrumbs">
+                            <li class="first">
+                                <span><a href="index.html">Bob Marinier</a></span>
+                            </li>
+                                                    <li>
+                                <span><a href="31654126.html">Soar Programmer&#39;s Guide</a></span>
+                            </li>
+                                                </ol>
+                    </div>
+                    <h1 id="title-heading" class="pagetitle">
+                                                <span id="title-text">
+                            Bob Marinier : binning data
+                        </span>
+                    </h1>
+                </div>
+
+                <div id="content" class="view">
+                    <div class="page-metadata">
+                                                Added by  bob.marinier , edited by  bob.marinier  on Apr 10, 2015
+                    </div>
+                    <div id="main-content" class="wiki-content group">
+                    <h1 id="binningdata-Introduction">Introduction</h1><p>A common data transformation is to take a number and assign it a label based on what range it falls in. For example, we might have a speed, and decide that [0,10) is slow, [10, 20) is medium, and [20, infinity) is fast. Of course, writing rules to do this for specific cases is pretty simple, but we'd ideally have some kind of general solution. For this problem, Tcl provides a natural solution to this problem: we can define the bins we care about and let Tcl generate the specific rules for us. This results is much more readable and maintainable code than raw rules.</p><p>We will also discuss non-Tcl alternatives: a pure Soar solution and having the input system handle it.</p><p>Finally, of course any of these approaches could be used in conjunction with Tcl constants.</p><h1 id="binningdata-Approach1:InputSystem">Approach 1: Input System</h1><p>If the data you want to bin comes from input, and the bins are static (i.e., not context-dependent), and they are unlikely to need to change, then the most efficient solution may be to have the input system (i.e., code outside of Soar) create the bins and put them on the input-link.</p><p>While slightly more efficient than a rule-based approach (it avoids rule matching), it's also very inflexible. Changing anything about the bins will typically require recompiling the system, and the next project will need to reimplement its own binning system. Of course, declarative solutions are possible (e.g., where the bins are defined in a config file).</p><h1 id="binningdata-Approach2:PureSoar">Approach 2: Pure Soar</h1><p>A pure Soar, non-Tcl general solution may also be possible, but is likely to be clunky, and will certainly be less efficient as it will rely on matching declarative structures in working memory to determine what the bins are.</p><h2 id="binningdata-Approach2.1:SpecificSoar">Approach 2.1: Specific Soar</h2><p>This approach is not actually interesting – it's just writing specific Soar rules for each bin. It's included here for comparison to the other approaches. As you can see, you need a separate rule for every bin, and the bin definitions are spread among multiple rules.</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;bin-speed-low
+   (state &lt;s&gt; ^io.input-link.speed-object &lt;so&gt;)
+   (&lt;so&gt; ^speed &lt;= 10.0)
+--&gt;
+   (&lt;so&gt; ^speed-bin low)
+&quot;
+
+sp &quot;bin-speed-medium
+   (state &lt;s&gt; ^io.input-link.speed-object &lt;so&gt;)
+   (&lt;so&gt; ^speed {&gt; 10.0 &lt;= 20.0})
+--&gt;
+   (&lt;so&gt; ^speed-bin medium)
+&quot;
+
+sp &quot;bin-speed-high
+   (state &lt;s&gt; ^io.input-link.speed-object &lt;so&gt;)
+   (&lt;so&gt; ^speed &gt; 20.0)
+--&gt;
+   (&lt;so&gt; ^speed-bin high)
+&quot;</pre>
+</div></div><h2 id="binningdata-Approach2.2:DefineSpecificBin">Approach 2.2: Define Specific Bin</h2><p>Here's an example that's specific to a particular set of bins. This gathers all of the constants in one place, so if you want to change the bins you can just modify one rule. The downside is you need separate rules for every value you want to bin, so this isn't really a general solution. It also requires matching on the bin structure, which is slightly less efficient than having separate rules with the bin bounds directly encoded in them. Finally, as shown here, it doesn't allow for defining whether the bounds of the ranges are included or not – it's hardcoded a particular way. And unlike the specific approach above, it requires both min and max bounds. (These last two issues are fixable within this paradigm, of course, but would require more rules.)</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;"># this rule defines the bins
+sp &quot;define-speed-bins
+   (state &lt;s&gt; ^superstate nil)
+--&gt;
+   (&lt;s&gt; ^bins &lt;bs&gt;)
+   (&lt;bs&gt; ^low &lt;l&gt; ^medium &lt;m&gt; ^high &lt;h&gt;)
+   (&lt;l&gt; ^min 0.0 ^max 10.0)
+   (&lt;m&gt; ^min 10.0 ^max 20.0)
+   (&lt;h&gt; ^min 20.0 ^max 9999999.0)
+&quot;
+
+# this rule creates them
+sp &quot;bin-speed
+   (state &lt;s&gt; ^io.input-link.speed-object &lt;so&gt;
+              ^bins &lt;bs&gt;)
+   (&lt;so&gt; ^speed &lt;speed&gt;)
+   (&lt;bs&gt; ^&lt;bin&gt; &lt;b&gt;)
+   (&lt;b&gt; ^min &lt;= &lt;speed&gt;
+        ^max &gt; &lt;speed&gt;)
+--&gt;
+   (&lt;so&gt; ^speed-bin &lt;bin&gt;)
+&quot;</pre>
+</div></div><h2 id="binningdata-Approach2.3:GeneralSoar">Approach 2.3: General Soar</h2><p>A more general solution could allow all bins to be registered in a single place, and then just have a single generic rule for creating the bin wherever it needs to be. The problem here is in specifying the location declaratively. If the location always exists, then a rule could literally create a pointer to where the data is (and possibly a separate location of where the bin needs to go). But many data will come and go, and thus the pointers to the locations will need to come and go – this implies separate rules for each location. With these extra rules, I start to wonder if we're actually saving much over the more specific solutions.</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;"># these rules define the bins and locations
+# there are two sets: speed bins and distance bins
+
+sp &quot;define-speed-bins
+   (state &lt;s&gt; ^bins &lt;bs&gt;)
+--&gt;
+   (&lt;bs&gt; ^speed &lt;sb&gt;)
+   (&lt;sb&gt; ^ranges &lt;rs&gt;
+         ^source-attr speed
+         ^dest-attr speed-bin)
+   (&lt;rs&gt; ^low &lt;l&gt; ^medium &lt;m&gt; ^high &lt;h&gt;)
+   (&lt;l&gt; ^min 0.0 ^max 10.0)
+   (&lt;m&gt; ^min 10.0 ^max 20.0)
+   (&lt;h&gt; ^min 20.0 ^max 9999999.0)
+&quot;
+
+sp &quot;define-speed-location
+   (state &lt;s&gt; ^bins.speed &lt;sb&gt;
+              ^io.input-link.speed-object &lt;obj&gt;)
+--&gt;
+   (&lt;sb&gt; ^location &lt;obj&gt;)
+&quot;
+
+sp &quot;define-distance-bins
+   (state &lt;s&gt; ^bins &lt;bs&gt;)
+--&gt;
+   (&lt;bs&gt; ^distance &lt;db&gt;)
+   (&lt;db&gt; ^ranges &lt;rs&gt;
+         ^source-attr distance
+         ^dest-attr distance-bin)
+   (&lt;rs&gt; ^near &lt;n&gt; ^far &lt;f&gt;)
+   (&lt;n&gt; ^min 0.0 ^max 50.0)
+   (&lt;f&gt; ^min 50.0 ^max 9999999.0)
+&quot;
+
+sp &quot;define-distance-location
+   (state &lt;s&gt; ^bins.distance &lt;db&gt;
+              ^io.input-link.distance-object &lt;obj&gt;)
+--&gt;
+   (&lt;db&gt; ^location &lt;obj&gt;)
+&quot;
+
+# these are the generic rules that support the bins
+
+sp &quot;create-generic-bins
+   (state &lt;s&gt; ^superstate nil)
+--&gt;
+   (&lt;s&gt; ^bins &lt;bs&gt;)
+&quot;
+
+sp &quot;bin-value
+   (state &lt;s&gt; ^bins &lt;bs&gt;)
+   (&lt;bs&gt; ^&lt;type&gt; &lt;b&gt;)
+   (&lt;b&gt; ^ranges &lt;rs&gt;
+        ^location &lt;loc&gt;
+        ^source-attr &lt;sattr&gt;
+        ^dest-attr &lt;dattr&gt;)
+   (&lt;loc&gt; ^&lt;attr&gt; &lt;value&gt;)
+   (&lt;rs&gt; ^&lt;bin&gt; &lt;b&gt;)
+   (&lt;b&gt; ^min &lt;= &lt;value&gt;
+        ^max &gt; &lt;value&gt;)
+--&gt;
+   (&lt;loc&gt; ^&lt;dattr&gt; &lt;bin&gt;)
+&quot;</pre>
+</div></div><p>Another consideration in creating these bin data structures is what they may do to the size of episodic memory episodes. Of course, they can be excluded, and unless you think you'll need them in retrieved episodes for some reason, that's probably a good idea.</p><h1 id="binningdata-Approach3:Tcl">Approach 3: Tcl</h1><p>Of course, the real problem with any of the pure Soar approaches is there's just too much to type. Lots of typing means lots of potential for typos.</p><p>Tcl does a great job of reducing typing, and thus typos, making development faster. It also makes it easier to refactor code, as you just have to change the code that generates the rules, not every rule as you would in the pure Soar approaches. Finally, you can get the benefits of the specific and general Soar approaches – a general-purpose proc that generates specific rules, thus maximizing performance. The third approach below demonstrates this.</p><p>Just as with pure Soar, there are multiple approaches with Tcl. The ones shown here are intended to give you an idea of what's possible (and indeed, these have been used in real systems), but you may come up with a better way.</p><h2 id="binningdata-Approach3.1:SpecificTcl">Approach 3.1: Specific Tcl</h2><p>This approach is specific to a particular set of bins. The primary gain over the specific and specific bin Soar approaches shown above is that it makes it very easy to see what the bins are, as the details of the bounds are not buried in the rules. It is even easier to see the bin definitions but still has the performance of the specific Soar solution.</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;"># defineSpeedBins --
+#
+#    Generates rules for binning speed values.
+#    Min is always &gt; and max is always &lt;=
+#
+# Arguments:
+#    bin: bin to create
+#    min: numeric value must be &gt; min
+#    max: numeric value must be &lt;= max
+#
+# Results:
+#    A Soar rule is generated that creates the specified bin if the speed value falls in the specified range
+
+proc defineSpeedBins { bin min max } {
+     set body &quot;elaborate*$bin
+               (state &lt;s&gt; ^io.input-link.speed-object &lt;so&gt;)
+               (&lt;so&gt; ^speed \{&gt; $min &lt;= $max\} )
+              --&gt;
+               (&lt;so&gt; ^speed-bin $bin)
+              &quot;
+         
+     debugEcho $body
+     sp $body
+}
+
+defineSpeedBins slow 0.0 10.0
+defineSpeedBins medium 10.0 20.0
+defineSpeedBins fast 20.0 9999999.0</pre>
+</div></div><p>This proc uses a general approach: assign the body of the Soar rule to a variable so it can be printed for debugging. This is especially helpful when there is a bug that prevents it from sourcing, so it can't be printed from Soar.</p><p>Also note the braces in the Soar syntax need to be escaped.</p><h2 id="binningdata-Approach2:MoreflexiblespecificTcl">Approach 2: More flexible specific Tcl</h2><p>One of the problems with the above example is it requires a min and max to be specified. It also hardcodes that the rule will use &gt; for min and &lt;= for max.</p><p>A more flexible approach is to specify the conditions directly in the call to the Tcl proc. This makes the calls more complex, but the resulting code is very flexible (although still specific to one set of bins).</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;"># defineSpeedBins --
+#
+#    Generates rules for binning speed values using supplied conditions.
+#
+# Arguments:
+#    bin: bin to create
+#    conditions: tests to use on speed value
+#
+# Results:
+#    A Soar rule is generated that creates the specified bin if the speed value falls in the specified range
+
+proc defineSpeedBins2 { bin conditions } {
+     set body &quot;elaborate*$bin
+               (state &lt;s&gt; ^io.input-link.speed-object &lt;so&gt;)
+               (&lt;so&gt; ^speed \{$conditions\} )
+              --&gt;
+               (&lt;so&gt; ^speed-bin $bin)
+              &quot;
+         
+     debugEcho $body
+     sp $body
+}
+
+# no min value
+defineSpeedBins2 slow &quot;&lt;= 10.0&quot; 
+# neither uses &gt;= or &lt;=
+defineSpeedBins2 medium &quot;&gt; 10.0 &lt; 20.0&quot;
+# no max value
+defineSpeedBins2 fast &quot;&gt;= 20.0&quot;
+# speed undefined
+defineSpeedBins2 undefined &quot;nil&quot;</pre>
+</div></div><p>Note that this does not technically require the tests to be numeric. If the speed value ever contains non-numeric values, those can be tested for, too (as in the last example).</p><h2 id="binningdata-Approach3.3:GeneralTcl">Approach 3.3: General Tcl</h2><p>This approach attempts to generalize the proc so that a single proc can be used to define multiple bin sets. To accomplish this, the location to bin must be specified, as well as the attribute to use for the bin. This version also uses a Tcl dict to define the ranges, so a single call creates all the bin rules. This was done to avoid having to specify the same location across multiple calls to the proc, which would have been an opportunity for a typo.</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;"># mapRangesToCategory --
+#
+#    Generates rules for binning speed values using supplied conditions.
+#
+# Arguments:
+#    bin: bin to create
+#    conditions: tests to use on speed value
+#
+# Results:
+#    A Soar rule is generated that creates the specified bin if the speed value falls in the specified range
+
+# ranges: a tcl dict defining all the bins of interest (see example below)
+# object: the location where the numeric values exist and where the bins will go
+# destAttr: the attribute to use for the binned value
+proc mapRangesToCategory { ranges object destAttr } {
+
+    # we&#39;ll generate a separate rule for each entry in the dictionary
+    # see here for an explanation of the dict for syntax: http://www.tcl.tk/man/tcl8.5/tutorial/Tcl23a.html
+    dict for { category info } $ranges {
+        
+        # to make sure all the rules have unique names, we&#39;ll generate part of 
+        # the name from the object. Since that may have &quot;.&quot; characters in it 
+        # (if it&#39;s a path) and that&#39;s not valid in a soar rule, we&#39;ll convert 
+        # those to &quot;*&quot; and lowercase the whole thing since that&#39;s standard Soar
+        set objectName [string map {&quot;.&quot; *} [string tolower $object]]
+        
+        set conditions &quot;&quot;
+
+        # this version also supports defining multiple tests across different
+        # source attributes to define a bin
+        # so we add a condition for each attribute we need to test
+        # note these don&#39;t even have to be numbers, although it does assume
+        # that the attributes are all on the same object 
+        foreach { sourceAttr val } $info {
+            append conditions &quot;^$sourceAttr \{$val\} &quot;
+        }
+
+        set body &quot;elaborate*$objectName*$sourceAttr*$category
+                  (state &lt;s&gt; ^$object &lt;object&gt;)
+                  (&lt;object&gt; $conditions)
+                  --&gt;
+                  (&lt;object&gt; ^$destAttr $category)&quot;
+
+                debugEcho $body
+        sp $body
+    }
+}
+
+# to use this, you first define the dict that defines the bins
+# then you call the proc with the dict and path information
+dict set speeds slow { speed &quot;&lt; 10&quot; }
+dict set speeds medium { speed &quot;&gt;= 10 &lt;= 50&quot; }
+dict set speeds deep { speed &quot;&gt; 50&quot; }
+dict set speeds undefined { speed &quot;nil&quot; }
+
+mapRangesToCategory $speeds io.input-link.speed-object.speed speed-bin
+
+# here&#39;s a different example showing some of the flexibility
+# it uses multiple different tests, only one of which is numeric
+dict set ships avoidable { speed &quot;&lt; 10&quot; has-sonar false }
+dict set ships unavoidable { speed &quot;&gt;= 10&quot; has-sonar true }
+dict set ships probably-avoidable { speed &quot;&lt; 10&quot; has-sonar true }
+dict set ships maybe-avoidable { speed &quot;&gt; 10&quot; has-sonar false }
+
+mapRangesToCategory $ships ship-specs.capabilities avoidance-bin</pre>
+</div></div><p>Of course, improvements to this are possible:</p><ul><li>the location where the bins are created could be definable. Indeed, rather than just specifying the name of the attribute, and entire path could be given</li><li>it's not really necessary to require the bin name to be specified (a default name could be generated from the value attribute if not specified)</li><li>this could be extended to support testing values from multiple objects (so a more complex mapping function as opposed to just simple binning)</li><li>this could be made easier to use for numeric values by allowing a sequence of numbers to be used, rather than requiring the max of one bin to be repeated as the min for the next bin (which is asking for errors). This would probably be a less flexible version of this proc, but could cover most of the need.</li></ul><p>One issue is there is a complexity/flexibility tradeoff. If you just want to create a single simple bin, this is more typing than the first Tcl example above. And the use of dicts is a little awkward. Perhaps someone can come up with a more clever solution.</p>
+                    </div>
+
+                    
+                 
+                </div>             </div> 
+            <div id="footer">
+                <section class="footer-body">
+                    <p>Document generated by Confluence on May 05, 2015 16:08</p>
+                </section>
+            </div>
+        </div>     </body>
+</html>

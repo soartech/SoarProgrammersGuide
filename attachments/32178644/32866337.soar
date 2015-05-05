@@ -1,0 +1,68 @@
+#
+# Supporting code
+#
+
+# You can get NGS here: https://github.com/soartech/new-goal-system
+source "new-goal-system/NewGoalSystem.tcl"
+
+#
+# Example code
+#
+
+sp "create*my-goal1
+   [NGS_match-goalpool <goals> <s>]
+  -(<s> ^my-goal1-complete true)
+-->
+   [NGS_create-goal <goals> my-goal1]
+"
+
+sp "my-goal1*propose*init
+   [NGS_match-active-goal my-goal1 <g> <s>]
+   [NGS_is-not-tagged <g> initialized]
+-->
+   [NGS_create-operator init <g> <o>]
+   (write (crlf) |Proposing my-goal1's init|)
+"
+ 
+sp "my-goal1*apply*init
+   [NGS_match-active-goal my-goal1 <g> <s>]
+   [NGS_match-operator init <o> <g> <gtags>]
+-->
+   [NGS_tag <gtags> initialized true]
+   [NGS_tag <gtags> color blue]
+   (<s> ^my-goal1-complete true)
+   (write (crlf) |Applying my-goal1's init|)
+"
+
+sp "create*my-goal2
+   [NGS_match-goalpool <goals> <s>]
+  -(<s> ^my-goal2-complete true)
+-->
+   [NGS_create-goal <goals> my-goal2]
+"
+
+sp "my-goal2*propose*init
+   [NGS_match-active-goal my-goal2 <g> <s>]
+   [NGS_is-not-tagged <g> initialized]
+-->
+   [NGS_create-operator init <g> <o>]
+   (write (crlf) |Proposing my-goal2's init|)
+"
+ 
+sp "my-goal2*apply*init
+   [NGS_match-active-goal my-goal2 <g> <s>]
+   [NGS_match-operator init <o> <g> <gtags>]
+-->
+   [NGS_tag <gtags> initialized true]
+   [NGS_tag <gtags> color red]
+   (<s> ^my-goal2-complete true)
+   (write (crlf) |Applying my-goal2's init|)
+"
+
+sp "stop
+   (state <s> ^my-goal1-complete true
+              ^my-goal2-complete true)
+-->
+   (write (crlf) |Example complete|)
+   (interrupt)
+"

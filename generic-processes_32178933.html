@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Bob Marinier : generic processes</title>
+        <link rel="stylesheet" href="styles/site.css" type="text/css" />
+        <META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    </head>
+
+    <body class="theme-default aui-theme-default">
+        <div id="page">
+            <div id="main" class="aui-page-panel">
+                <div id="main-header">
+                    <div id="breadcrumb-section">
+                        <ol id="breadcrumbs">
+                            <li class="first">
+                                <span><a href="index.html">Bob Marinier</a></span>
+                            </li>
+                                                    <li>
+                                <span><a href="31654126.html">Soar Programmer&#39;s Guide</a></span>
+                            </li>
+                                                </ol>
+                    </div>
+                    <h1 id="title-heading" class="pagetitle">
+                                                <span id="title-text">
+                            Bob Marinier : generic processes
+                        </span>
+                    </h1>
+                </div>
+
+                <div id="content" class="view">
+                    <div class="page-metadata">
+                                                Added by  bob.marinier , edited by  bob.marinier  on Apr 22, 2015
+                    </div>
+                    <div id="main-content" class="wiki-content group">
+                    <h1 id="genericprocesses-Introduction">Introduction</h1><p>Reusable code is a hallmark of good design. Standard programming languages will package reusable code as functions, classes, etc. Reusable code is also the basis of libraries, which are critical to doing anything complex in a short amount of time.</p><p>There are multiple ways to create reusable code. Here we will discuss reusable operators and subgoals. (Another major way to create reusable code is Tcl macros, discussed elsewhere.) The general approach applies in both Michigan style and NGS code. Reusable operators/subgoals are often called &quot;floating&quot; operators/subgoals, as they can be inserted anywhere in the goal hierarchy.</p><p>Related sections include: <a href="aspects_31654263.html">aspects</a>, <a href="callbacks_32178941.html">callbacks</a></p><h1 id="genericprocesses-Approach:Specificproposals,genericapplies">Approach: Specific proposals, generic applies</h1><p>The basic approach is to have a common apply rule (or subgoal), and to have context-specific rules propose the operator or create the goal wherever desired.</p><p>For example, suppose we wanted to send a message using Aria (né simradio). We could set up a generic apply rule like this:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;apply*send-message
+   (state &lt;s&gt; ^operator &lt;o&gt;
+              ^top-state.io.output-link &lt;ol&gt;)
+   (&lt;o&gt; ^name send-message
+        ^radio-id &lt;rid&gt;
+        ^message &lt;msg&gt;)
+--&gt;
+   (&lt;ol&gt; ^radio-command &lt;rc&gt;)
+   (&lt;rc&gt; ^radio-id &lt;rid&gt;
+         ^transmit &lt;msg&gt;)
+&quot;</pre>
+</div></div><p>Then, in all the places you want to send a radio message, you simply propose the operator (executable example <a href="attachments/32178933/32866346.soar">here</a>):</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;my-goal*propose*send-message
+   (state &lt;s&gt; ^name my-goal)
+   # any other context
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name send-message
+        ^radio-id my-radio
+        ^message |Hello world!|)
+&quot;</pre>
+</div></div><p>Of course, the proposal could just as well have tested an NGS goal, or no goal at all. The key here is that the apply doesn't test a goal, and thus can apply on any goal (in some sense, this is intentionally doing the thing I said to avoid in <a href="General-guidance_32178644.html">General guidance</a>, but here it has a purpose).</p><p>This is a nice way of hiding the details of how sending a message actually works – if the format of the output command changed, you would only have to update one place – indeed, this is the point of code reuse.</p><p>Notice also how we are treating operators like function calls as discussed in <a href="General-guidance_32178644.html">General guidance</a>.</p><p>What about a more complex situation, like an entire subgoal? The same basic approach applies: the entire subgoal is encoded generically, and it is created in any of the places that want to use it.</p><p>Let's consider a more complex version of send-message. This example is shown using NGS, but it's easily translated to Michigan style.</p><p>In this version, the subgoal does two things: it sends the message, and then it returns a result defined by the caller. The send-message operator also supports an optional priority argument (after all, reusable code should strive to be generally useful), so some of the rules are that in. (For a more complete discussion of optional arguments and default values, see <a href="default-values_32179160.html">default values</a>). It also uses Tcl macros for some common constants, such as the input-link, output-link, and the radio-id.</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">#
+# achieve-send-message/send-message.soar
+#
+
+# Once we are in the achieve-send-message subgoal, propose the send message operator
+# Then elaborate on the priority (either as provided or a default)
+# Finally apply the operator
+
+sp &quot;achieve-send-message*propose*send-message
+   [NGS_match-active-goal achieve-send-message &lt;g&gt; &lt;s&gt;]
+   [NGS_is-not-tagged &lt;g&gt; message-sent true]
+   [NGS_is-tagged &lt;g&gt; message &lt;msg&gt;]
+--&gt;
+   [NGS_create-operator send-message &lt;g&gt; &lt;o&gt;]
+   (&lt;o&gt; ^message &lt;msg&gt;)
+&quot;
+
+sp &quot;achieve-send-message*elaborate*send-message*priority
+   [NGS_match-active-goal achieve-send-message &lt;g&gt; &lt;s&gt;]
+   [NGS_match-proposed-operator send-message &lt;o&gt;]
+   [NGS_is-tagged &lt;g&gt; priority &lt;pri&gt;]
+--&gt;
+   (&lt;o&gt; ^priority &lt;pri&gt;)
+&quot;
+
+sp &quot;achieve-send-message*elaborate*send-message*default-priority
+   [NGS_match-active-goal achieve-send-message &lt;g&gt; &lt;s&gt;]
+   [NGS_match-proposed-operator send-message &lt;o&gt;]
+   [NGS_is-not-tagged &lt;g&gt; priority]
+--&gt;
+   (&lt;o&gt; ^priority $messageDefaultPriority)
+&quot;
+
+sp &quot;achieve-send-message*apply*send-message
+   [NGS_match-active-goal achieve-send-message &lt;g&gt; &lt;s&gt;]
+   [NGS_match-operator send-message &lt;o&gt; &lt;g&gt;]
+   (&lt;g&gt; ^tags &lt;gtags&gt;)
+   (&lt;o&gt; ^message &lt;msg&gt;
+        ^priority &lt;pri&gt;)
+   (&lt;s&gt; ^$olink &lt;ol&gt;)
+--&gt;
+   (&lt;ol&gt; ^radio-command &lt;rc&gt;)
+   (&lt;rc&gt; ^radio-id $radio1
+         ^transmit &lt;msg&gt;
+         ^priority &lt;pri&gt;)
+   (log $info |Sending radio message: |&lt;msg&gt;)
+   [NGS_tag &lt;gtags&gt; message-sent true]
+&quot;
+
+#
+# achieve-send-message/return-result.soar
+#
+
+# this creates whatever result the caller asked for
+# the intention is that this triggers the retraction of this goal
+sp &quot;achieve-send-message*propose*return-result
+   [NGS_match-active-goal achieve-send-message &lt;g&gt; &lt;s&gt;]
+   [NGS_is-tagged &lt;g&gt; message-sent true]
+   [NGS_is-tagged &lt;g&gt; result-id &lt;id&gt;]
+   [NGS_is-tagged &lt;g&gt; result-attr &lt;attr&gt;]
+   [NGS_is-tagged &lt;g&gt; result-val &lt;val&gt;]
+--&gt;
+   [NGS_create-operator return-result &lt;g&gt; &lt;o&gt;]
+   (&lt;o&gt; ^result-id &lt;id&gt;
+        ^result-attr &lt;attr&gt;
+        ^result-val &lt;val&gt;)
+&quot;
+sp &quot;achieve-send-message*apply*return-result
+   [NGS_match-active-goal achieve-send-message &lt;g&gt; &lt;s&gt;]
+   [NGS_match-operator return-result &lt;o&gt; &lt;g&gt;]
+   (&lt;o&gt; ^result-id &lt;id&gt;
+        ^result-attr &lt;attr&gt;
+        ^result-val &lt;val&gt;)
+--&gt;
+   (&lt;id&gt; ^&lt;attr&gt; &lt;val&gt;)
+&quot;</pre>
+</div></div><p>To send a message using this subgoal, you would create the subgoal wherever you needed it like this (executable example <a href="attachments/32178933/32866345.soar">here</a>):</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;my-goal*create-subgoal*achieve-send-message
+   [NGS_match-active-goal my-goal &lt;g&gt; &lt;s&gt;]
+   [NGS_match-goalpool &lt;goals&gt;]
+  -(&lt;s&gt; ^message-sent true)
+   # any other context
+--&gt;
+   [NGS_create-subgoal &lt;goals&gt; achieve-send-message &lt;g&gt; &lt;sg&gt; &lt;sgtags&gt;]
+   [NGS_tag &lt;sgtags&gt; message &quot;|Hello world!|&quot;]
+   [NGS_tag &lt;sgtags&gt; result-id &lt;s&gt;]
+   [NGS_tag &lt;sgtags&gt; result-attr message-sent]
+   [NGS_tag &lt;sgtags&gt; result-val true]
+&quot;</pre>
+</div></div><p>All of the arguments needed to execute the subgoal are attached to the goal creation (or, in Michigan style, to the operator proposal that triggers the ONC impasse). In this example, the optional priority is left out, but adding it is simply a matter of putting on a &quot;priority&quot; tag. When the goal executes, it will send the message and then create the specified result – in this case (&lt;s&gt; ^message-sent true). The creation of this result triggers the retraction of the subgoal.</p><p>Generally speaking, you will need some way to know that the subgoal has completed. The subgoal could return a fixed result, but this has several downsides: it essentially makes a particular attribute/value &quot;reserved&quot;, and it imposes a restriction on use, namely where the result should go. (I have had situations where the place to put the result was actually up several levels in the goal hierarchy, resulting in an entire set of subgoals getting retracted at once.) Thus, it is more flexible, and not much more work, to allow the caller to specify where the result should go.</p><p>As discussed in <a href="callbacks_32178941.html">callbacks</a>, it is also possible to specify considerably more than just where a result should go.</p>
+                    </div>
+
+                                        <div class="pageSection group">
+                        <div class="pageSectionHeader">
+                            <h2 id="attachments" class="pageSectionTitle">Attachments:</h2>
+                        </div>
+
+                        <div class="greybox" align="left">
+                                                            <img src="images/icons/bullet_blue.gif" height="8" width="8" alt=""/>
+                                <a href="attachments/32178933/32866345.soar">generic-processes-floating-subgoal.soar</a> (application/octet-stream)
+                                <br/>
+                                                            <img src="images/icons/bullet_blue.gif" height="8" width="8" alt=""/>
+                                <a href="attachments/32178933/32866346.soar">generic-processes-floating-operator.soar</a> (application/octet-stream)
+                                <br/>
+                                                    </div>
+                    </div>
+                    
+                 
+                </div>             </div> 
+            <div id="footer">
+                <section class="footer-body">
+                    <p>Document generated by Confluence on May 05, 2015 16:08</p>
+                </section>
+            </div>
+        </div>     </body>
+</html>

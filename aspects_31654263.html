@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Bob Marinier : aspects</title>
+        <link rel="stylesheet" href="styles/site.css" type="text/css" />
+        <META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    </head>
+
+    <body class="theme-default aui-theme-default">
+        <div id="page">
+            <div id="main" class="aui-page-panel">
+                <div id="main-header">
+                    <div id="breadcrumb-section">
+                        <ol id="breadcrumbs">
+                            <li class="first">
+                                <span><a href="index.html">Bob Marinier</a></span>
+                            </li>
+                                                    <li>
+                                <span><a href="31654126.html">Soar Programmer&#39;s Guide</a></span>
+                            </li>
+                                                </ol>
+                    </div>
+                    <h1 id="title-heading" class="pagetitle">
+                                                <span id="title-text">
+                            Bob Marinier : aspects
+                        </span>
+                    </h1>
+                </div>
+
+                <div id="content" class="view">
+                    <div class="page-metadata">
+                                                Added by  bob.marinier , edited by  bob.marinier  on Apr 16, 2015
+                    </div>
+                    <div id="main-content" class="wiki-content group">
+                    <h1 id="aspects-Introduction">Introduction</h1><p>Sometimes you need a way to allow context-sensitive knowledge insert itself at an appropriate place in an algorithm. E.g., &quot;all applicable heuristics compute your values here&quot;. There's no way to know ahead of time how many there are. This is essentially a version <a href="http://en.wikipedia.org/wiki/Aspect-oriented_programming" class="external-link" rel="nofollow">Aspect-Oriented Programming</a> (AOP), which defines a few terms:</p><ul><li><em>join point</em> is a place where code can be inserted. This is defined by an operator or goal.</li><li><em>pointcut</em> is a way to determine that a join point matches (i.e., now is the time to insert code). This may be an operator proposal or elaboration rule.</li><li><em>advice</em> is the code to run at a join point when it matches. This may be an operator apply or an entire subgoal.</li></ul><p>I'm not going to attempt to describe a universal means for supporting AOP in Soar, although if you are interested in that you should read <a href="http://ai.eecs.umich.edu/soar/sitemaker/workshop/27/Crossman1.pdf" class="external-link" rel="nofollow">Jacob Crossman's Aspects and Soar presentation</a>. But these terms could be useful in describing how to insert knowledge at runtime in a particular place in your code.</p><p>As an example, suppose we want to create a bunch of standing queries to an external system during initialization. We want it to be very easy to add new queries, and some of those queries may only apply to certain domains, so not all authored queries will necessarily get created.</p><p>This table summarizes the primary differences among the approaches:</p><div class="table-wrap"><table class="confluenceTable"><tbody><tr><th class="confluenceTh"> </th><th class="confluenceTh">join point</th><th class="confluenceTh">pointcut</th><th class="confluenceTh">advice</th></tr><tr><td class="confluenceTd">Approach 1: Many proposals, many applies</td><td class="confluenceTd">goal</td><td class="confluenceTd">proposal rule</td><td class="confluenceTd">apply rule</td></tr><tr><td class="confluenceTd">Approach 2: One propose, many applies</td><td class="confluenceTd">operator proposal</td><td class="confluenceTd">apply conditions</td><td class="confluenceTd">apply actions</td></tr><tr><td class="confluenceTd">Approach 3: Many proposals, one apply</td><td class="confluenceTd">goal</td><td class="confluenceTd">proposal conditions</td><td class="confluenceTd">defined in proposal actions, executed in shared apply</td></tr><tr><td class="confluenceTd">Approach 4: One propose, one apply, many elaborations</td><td class="confluenceTd">operator proposal</td><td class="confluenceTd">operator elaboration conditions</td><td class="confluenceTd">defined in operator elaboration actions, executed in shared apply</td></tr></tbody></table></div><h1 id="aspects-Approach1:Manyproposals,manyapplies">Approach 1: Many proposals, many applies</h1><p>This is very similar to Approach 1 in <a href="foreach_31654248.html">foreach</a>: the join point is specified by a goal, and matching on that goal is the point cut. The advice is whatever operators propose themselves.</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">#
+# these rules define the queries that will insert themselves in the initialization process when contextually appropriate
+# these could be defined in a completely different place in the code, or come out of an authoring tool
+# note the proposals are the pointcuts, the applies are the advice
+#
+
+sp &quot;init-queries*propose*query1
+   (state &lt;s&gt; ^name init-queries
+              ^args &lt;args&gt;)
+   (&lt;args&gt; ^domain foo # defines context
+           ^queries &lt;qs&gt;)
+  -(&lt;qs&gt; ^query.name query2)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name create-query-1
+        ^queries &lt;qs&gt;)
+&quot;
+
+sp &quot;init-queries*apply*query1
+   (state &lt;s&gt; ^name init-queries
+              ^operator &lt;o&gt;)
+   (&lt;o&gt; ^name create-query-1
+        ^queries &lt;qs&gt;)
+--&gt;
+   (&lt;qs&gt; ^query &lt;q&gt;)
+   (&lt;q&gt; ^name query1
+        ^parameters whatever1)
+&quot;
+
+sp &quot;init-queries*propose*query2
+   (state &lt;s&gt; ^name init-queries
+              ^args &lt;args&gt;)
+   (&lt;args&gt; ^domain &lt;&lt; foo bar &gt;&gt; # defines context
+           ^queries &lt;qs&gt;)
+  -(&lt;qs&gt; ^query.name query2)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name create-query-2
+        ^queries &lt;qs&gt;)
+&quot;
+
+sp &quot;init-queries*apply*query2
+   (state &lt;s&gt; ^name init-queries
+              ^operator &lt;o&gt;)
+   (&lt;o&gt; ^name create-query-2
+        ^queries &lt;qs&gt;)
+--&gt;
+   (&lt;qs&gt; ^query &lt;q&gt;)
+   (&lt;q&gt; ^name query2
+        ^parameters whatever2)
+&quot;
+
+#
+# Main algorithm that we want advice inserted into
+#
+
+# this creates the goal that serves as the join point
+sp &quot;propose*init-queries
+   (state &lt;s&gt; ^queries &lt;qs&gt; # the place queries will go
+              ^domain &lt;d&gt; # other important context
+             -^queries-initialized true)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name init-queries
+        ^queries &lt;qs&gt;
+        ^domain &lt;d&gt;)
+&quot;
+
+# won&#39;t get selected until all queries are created, then returns a result to terminate the goal
+sp &quot;init-queries*propose*finish
+   (state &lt;s&gt; ^name init-queries)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; + &lt;)
+   (&lt;o&gt; ^name finish)
+&quot;
+ 
+sp &quot;init-queries*apply*finish
+   (state &lt;s&gt; ^name init-queries
+              ^operator.name finish
+              ^superstate &lt;ss&gt;)
+--&gt;
+   (&lt;ss&gt; ^queries-initialized true)
+&quot;
+</pre>
+</div></div><p>In this example, the core algorithm is very simple: just create a goal and propose a worst-pref operator to terminate it (see <a href="foreach_31654248.html">foreach</a> for discussion of alternatives to worst pref). Depending on the context and queries defined, it may be that no queries get created here, or 100 queries do. In this example, if the domain is foo, then both queries get created, if the domain is bar only query2 gets created, and if it's something else, no queries get created.</p><p><strong>Pros:</strong></p><ul><li>Maintains reactivity (one operator per advice)</li><li>Supports advice as subgoals (i.e., a pointcut that triggers the creation of a subgoal)</li><li>Supports multiple waves of applies</li></ul><p><strong>Cons:</strong></p><ul><li>See Approach 1 in <a href="foreach_31654248.html">foreach</a></li></ul><h1 id="aspects-Approach2:Oneproposal,manyapplies">Approach 2: One proposal, many applies</h1><p>In this approach, the join point is defined by a simple operator proposal, as opposed to a goal, and then the advice is contained in matching apply rules. It is very similar to Approach 2 in <a href="foreach_31654248.html">foreach</a>.</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">#
+# these rules define the queries that will insert themselves in the initialization process when contextually appropriate
+# these could be defined in a completely different place in the code, or come out of an authoring tool
+# note the apply conditions are the pointcuts and the apply actions are the advice
+#
+
+sp &quot;apply*init-queries*query1
+   (state &lt;s&gt; ^operator &lt;o&gt;)
+   (&lt;o&gt; ^name init-queries
+        ^domain foo # defines context
+        ^queries &lt;qs&gt;)
+--&gt;
+   (&lt;qs&gt; ^query &lt;q&gt;)
+   (&lt;q&gt; ^name query1
+        ^parameters whatever1)
+&quot;
+
+sp &quot;apply*init-queries*query2
+   (state &lt;s&gt; ^operator &lt;o&gt;)
+   (&lt;o&gt; ^name init-queries
+        ^domain &lt;&lt; foo bar &gt;&gt; # defines context
+        ^queries &lt;qs&gt;)
+--&gt;
+   (&lt;qs&gt; ^query &lt;q&gt;)
+   (&lt;q&gt; ^name query2
+        ^parameters whatever2)
+&quot;
+
+#
+# Main algorithm that we want advice inserted into
+#
+
+# this proposes the operator that serves as the join point
+sp &quot;propose*init-queries
+   (state &lt;s&gt; ^queries &lt;qs&gt; # the place queries will go
+              ^domain &lt;d&gt;) # other important context
+  -(&lt;qs&gt; ^query) # no queries created yet
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name init-queries
+        ^queries &lt;qs&gt;
+        ^domain &lt;d&gt;)
+&quot;
+</pre>
+</div></div><p>This approach uses a single operator with parallel applies. In this case, we were able to condition the operator to retract when all the queries were created. If this were impractical, we could have a terminating apply rule that fires in parallel with the advice to cause the operator to retract.</p><p><strong>Pros:</strong></p><ul><li>Avoids overhead of decision cycle by doing everything in parallel at once (although overhead should be pretty minimal)</li><li>Ensures that the processing happens &quot;atomically&quot; (i.e., there is no state where some objects are marked and some aren't). This could be important in some cases, although if it is you might reconsider your design as it's pretty brittle.</li></ul><p><strong>Cons:</strong></p><ul><li>Supporting multiple waves of rule firings is difficult. In the example, everything must occur in a single wave (the operator will retract after that, so there will be no second wave). Of course, the proposal could be conditioned on something that won't happen until the nth wave of rule firings, but in complex systems, getting the multiple waves to happen the way you want is often difficult.</li><li>Reduces reactivity: The agent is stuck in this decision until all the applies have fired – it can't get new input or work on anything else in the meantime. If the number of objects is small, this is not a big deal. But if there are 1000 objects, this could matter.<ul><li>It should be noted that in some cases this could be advantageous – e.g., it gives an opportunity to do something to every object on the input-link before they potentially disappear in the next cycle. But this seems like a brittle design – there may be better ways to deal with disappearing input.</li></ul></li><li>If the processing has side effects, doing them all in parallel may not work. E.g., counting is an inherently sequential process, and thus Approach 1 is necessary.</li><li>Doesn't support complex (i.e., subgoal) processing of each object</li></ul><h1 id="aspects-Approach3:Multipleproposals,singleparameterizedapply">Approach 3: Multiple proposals, single parameterized apply</h1><p>In this approach, there is a single generic apply rule that is used by many proposals. This will presumably be done under a single goal. This is an application of floating operators/subgoals.</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">#
+# these rules define the queries that will insert themselves in the initialization process when contextually appropriate
+# these could be defined in a completely different place in the code, or come out of an authoring tool
+# note the propose conditions are the pointcuts and the propose actions contain the advice (which is applied by the generic apply rule)
+#
+
+sp &quot;init-queries*propose*create-query*query1
+   (state &lt;s&gt; ^name init-queries
+              ^args.domain foo) # defines context
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name create-query
+        ^query &lt;q&gt;)
+   (&lt;q&gt; ^name query1
+        ^parameters whatever1)
+&quot;
+
+sp &quot;init-queries*propose*create-query*query2
+   (state &lt;s&gt; ^name init-queries
+              ^args.domain &lt;&lt; foo bar &gt;&gt;) # defines context
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name create-query
+        ^query &lt;q&gt;)
+   (&lt;q&gt; ^name query2
+        ^parameters whatever2)
+&quot;
+
+#
+# Main algorithm that we want advice inserted into
+#
+
+# this creates the goal that serves as the join point
+sp &quot;propose*init-queries
+   (state &lt;s&gt; ^queries &lt;qs&gt; # the place queries will go
+              ^domain &lt;d&gt;) # other important context
+  -(&lt;qs&gt; ^query) # no queries created yet
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name init-queries
+        ^queries &lt;qs&gt;
+        ^domain &lt;d&gt;)
+&quot;
+
+sp &quot;init-queries*apply*create-query
+   (state &lt;s&gt; ^name init-queries
+              ^args.queries &lt;qs&gt;
+              ^operator &lt;o&gt;)
+   (&lt;o&gt; ^name create-query
+        ^query &lt;q&gt;)
+   (&lt;q&gt; ^name &lt;name&gt;
+        ^parameters &lt;params&gt;)
+--&gt;
+   (&lt;qs&gt; ^query &lt;qcopy&gt;) # have to create a copy since the query structure on the operator will go away when the operator retracts
+   (&lt;qcopy&gt; ^name &lt;name&gt;
+            ^parameters &lt;params&gt;)
+&quot;</pre>
+</div></div><p>In this version, a goal is created and then all operators propose themselves to create queries. A generic apply rule applies to all of them. This is similar to Approach 1, but requires fewer rules since the proposal contains all the necessary information (pointcuts and advice) instead of spreading it out over separate propose and apply rules.</p><p><strong>Pros:</strong></p><ul><li>Same as Approach 1</li><li>Fewer rules than approach 1, which matters if people are writing them by hand (if generated, this doesn't matter)</li></ul><p><strong>Cons:</strong></p><ul><li>Same as Approach 1</li><li>This means all advice must follow a standard pattern, which may not be desirable or possible in some cases</li></ul><h1 id="aspects-Approach4:Singleproposal,singleparameterizedapply,elaborationstocreateparameters">Approach 4: Single proposal, single parameterized apply, elaborations to create parameters</h1><p>In this approach, there is a single proposal and apply rule, but elaborations insert parameters on the operator before the apply.</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">#
+# these rules define the queries that will insert themselves in the initialization process when contextually appropriate
+# these could be defined in a completely different place in the code, or come out of an authoring tool
+# note the elaboration conditions are the pointcuts and the elaborations actions contain the advice (which is applied by the generic apply rule)
+#
+
+sp &quot;elaborate-operator*init-queries*query1
+   (state &lt;s&gt; ^operator &lt;o&gt;)
+   (&lt;o&gt; ^name init-queries
+        ^domain foo) # defines context
+--&gt;
+   (&lt;o&gt; ^query &lt;q&gt;)
+   (&lt;q&gt; ^name query1
+        ^parameters whatever1)
+&quot;
+
+sp &quot;elaborate-operator*init-queries*query2
+   (state &lt;s&gt; ^operator &lt;o&gt;)
+   (&lt;o&gt; ^name init-queries
+        ^domain &lt;&lt; foo bar &gt;&gt;) # defines context
+--&gt;
+   (&lt;o&gt; ^query &lt;q&gt;)
+   (&lt;q&gt; ^name query2
+        ^parameters whatever2)
+&quot;
+
+#
+# Main algorithm that we want advice inserted into
+#
+
+# this creates the goal that serves as the join point
+sp &quot;propose*init-queries
+   (state &lt;s&gt; ^queries &lt;qs&gt; # the place queries will go
+              ^domain &lt;d&gt;) # other important context
+  -(&lt;qs&gt; ^query) # no queries created yet
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name init-queries
+        ^queries &lt;qs&gt;
+        ^domain &lt;d&gt;)
+&quot;
+
+sp &quot;apply*init-queries
+   (state &lt;s&gt; ^operator &lt;o&gt;)
+   (&lt;o&gt; ^name init-queries
+        ^queries &lt;qs&gt;
+        ^query &lt;q&gt;)
+   (&lt;q&gt; ^name &lt;name&gt;
+        ^parameters &lt;params&gt;)
+--&gt;
+   (&lt;qs&gt; ^query &lt;qcopy&gt;) # have to create a copy since the query structure on the operator will go away when the operator retracts
+   (&lt;qcopy&gt; ^name &lt;name&gt;
+            ^parameters &lt;params&gt;)
+&quot;</pre>
+</div></div><p>In this version, there is a single proposal and apply, and elaboration rules insert any number of query parameters after the operator is selected but before it applies (in the first IE subphase of the apply phase). We could just as easily elaborated these parameters on the proposed operator, in which case they would be created before the operator was selected. The potential downside of this approach is if you have operators that may never get selected (e.g., there's an alternative init operator, and it gets selected instead), you could waste a lot of computation creating all these parameters for nothing. But in many cases it doesn't matter.</p><p>Note that in the default o-support mode, the ^query on the operator will get i-support, but it's substructure will get i-support. This may cause Soar to print a warning message. If this bothers you, consider elaborating the proposed operator instead.</p><p><strong>Pros:</strong></p><ul><li>Everything in Approach 2</li></ul><p><strong>Cons:</strong></p><ul><li>Everything in Approach 2</li><li>This means all advice must follow a standard pattern, which may not be desirable or possible in some cases</li></ul>
+                    </div>
+
+                    
+                 
+                </div>             </div> 
+            <div id="footer">
+                <section class="footer-body">
+                    <p>Document generated by Confluence on May 05, 2015 16:08</p>
+                </section>
+            </div>
+        </div>     </body>
+</html>

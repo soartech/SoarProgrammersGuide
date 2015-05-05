@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Bob Marinier : default values</title>
+        <link rel="stylesheet" href="styles/site.css" type="text/css" />
+        <META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    </head>
+
+    <body class="theme-default aui-theme-default">
+        <div id="page">
+            <div id="main" class="aui-page-panel">
+                <div id="main-header">
+                    <div id="breadcrumb-section">
+                        <ol id="breadcrumbs">
+                            <li class="first">
+                                <span><a href="index.html">Bob Marinier</a></span>
+                            </li>
+                                                    <li>
+                                <span><a href="31654126.html">Soar Programmer&#39;s Guide</a></span>
+                            </li>
+                                                </ol>
+                    </div>
+                    <h1 id="title-heading" class="pagetitle">
+                                                <span id="title-text">
+                            Bob Marinier : default values
+                        </span>
+                    </h1>
+                </div>
+
+                <div id="content" class="view">
+                    <div class="page-metadata">
+                                                Added by  bob.marinier , edited by  bob.marinier  on Apr 23, 2015
+                    </div>
+                    <div id="main-content" class="wiki-content group">
+                    <h1 id="defaultvalues-Introduction">Introduction</h1><p>When you're creating <a href="generic-processes_32178933.html">generic processes</a>, you may want to support optional arguments. Thus, you need to handle the case where the argument is not supplied. Or you may have an input value that is not always provided. You may even have cases where you want to create default values for your own processing (e.g., a process may create a ^complete true flag, and you want to have a ^complete false flag there until the process completes). You could have special-case handling for when the value is missing, but I generally find that the easiest way to do this is to assume a default value. That way, the rest of the code can work exactly the same (i.e., assume that the value is given). (Of course, in the input case, if you control the input you can change it in the I/O layer. But sometimes you don't control it, or don't want to touch that code.)</p><p>In any case, you will probably want to use i-support, so that if a non-default value is created, the default automatically retracts. So (almost) all our examples here will all use i-support. There may be special cases where o-support is desired; the last example below is a case that results in o-support (although as I say there, I wouldn't normally do it that way).</p><h1 id="defaultvalues-Hownottodoit">How not to do it</h1><p>We'll start with a default value on a state, because it's the simplest. Novice Soar programmers will often make a mistake like this (executable example <a href="attachments/32179160/32866362.soar">here</a>):</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;"># this will not work
+sp &quot;my-goal*elaborate*default-value*0
+   (state &lt;s&gt; ^name my-goal
+             -^value)
+--&gt;
+   (&lt;s&gt; ^value 0)
+&quot;</pre>
+</div></div><p>This will not work because this rule is i-supported, which means it is truth-maintained, which means it will cause itself to retract. Thus, in a single phase, this rule will fire and retract over and over. Luckily, Soar has a fail-safe to prevent it from getting into an infinite loop. By default, if Soar does 50 elaboration subphases in a row, it will print a warning (&quot;Warning: reached max-elaborations; proceeding to &lt;next phase&gt; phase.&quot; with some phase filled in) and move on to the next phase. This is commonly referred to as &quot;hitting max elaborations&quot;.</p><p>Note that elaborating operators in this way has exactly the same problem, even for selected operators (since operator elaborations are i-supported) (executable examples <a href="attachments/32179160/32866363.soar">here </a>and <a href="attachments/32179160/32866364.soar">here</a>, respectively):</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;"># this will not work
+sp &quot;my-operator*elaborate*default-value*0
+   (state &lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name my-operator
+       -^value)
+--&gt;
+   (&lt;o&gt; ^value 0)
+&quot;
+
+# this also will not work
+sp &quot;my-operator*elaborate*default-value*0
+   (state &lt;s&gt; ^operator &lt;o&gt;)
+   (&lt;o&gt; ^my-operator
+       -^value)
+--&gt;
+   (&lt;o&gt; ^value 0)
+&quot;</pre>
+</div></div><h1 id="defaultvalues-Rightwaystocreatedefaultvalues">Right ways to create default values</h1><p>The key to fixing these is to test something that won't be changed by the rule firing. This could be a specific value, or it could mean creating the default in another location.</p><h2 id="defaultvalues-Stateelaboration">State elaboration</h2><p>For a flag with a small number of possible values, we can just test that none of the other values exist (executable example <a href="attachments/32179160/32866365.soar">here</a>):</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;my-goal*elaborate*default-complete*false
+   (state &lt;s&gt; ^name my-goal
+             -^complete true)
+--&gt;
+   (&lt;s&gt; ^complete false)
+&quot;</pre>
+</div></div><p>Here's a 3-state flag example (executable example <a href="attachments/32179160/32866366.soar">here</a>):</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;my-goal*elaborate*default-direction*straight
+   (state &lt;s&gt; ^name my-goal
+             -^direction &lt;&lt; left right &gt;&gt;)
+--&gt;
+   (&lt;s&gt; ^direction straight)
+&quot;</pre>
+</div></div><p>For numeric cases, you can simply use greater/less than tests (executable example <a href="attachments/32179160/32866367.soar">here</a>):</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;my-goal*elaborate*default-value*0
+   (state &lt;s&gt; ^name my-goal
+             -^value &gt; 0)
+--&gt;
+   (&lt;s&gt; ^value 0)
+&quot;</pre>
+</div></div><p>There's also a universal way to do this that subsumes all of the approaches above (executable example <a href="attachments/32179160/32866368.soar">here</a>):</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: false" style="font-size:12px;">sp &quot;my-goal*elaborate*default-value*0
+   (state &lt;s&gt; ^name my-goal
+             -^value &lt;&gt; 0)
+--&gt;
+   (&lt;s&gt; ^value 0)
+&quot;</pre>
+</div></div><p>Essentially, check that there is no non-default value present. Creating the default doesn't cause this to unmatch. This will work for any type with any number of possible values (finite or infinite). The potential downside is the double-negative can be hard to understand if you're not used to this pattern. So if you do this, you should probably comment it.</p><p>Note that if the default value rule fires, and then a non-default value is created, there will be a single subphase in which both the default and non-default value exist (as the default rule won't retract until the next subphase). The working executable examples above all contain rules that print when this happens to make it clear. Similarly, if the system is using a non-default value which goes away, there will be a single subphase in which there is no value (as the default rule won't fire until the next subphase). This is generally not a problem, but it does mean you won't be able to create an <a href="Debugging-guidance_32179074.html">assert</a> rule to blindly check that your flag always has exactly one value (instead, you'll have to condition that rule to check at some later point when you know for sure there shouldn't be exactly one value).</p><h2 id="defaultvalues-Goals">Goals</h2><p>For goals, the typical approach is to elaborate the value (given or default) to a location separate from the goal. For example, onto the operators that care about that value, or onto the goal's state. This requires two rules (one for the default, and one for the given value).</p><p>Here's an example using a UM style goal:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;my-goal*elaborate*value
+   (state &lt;s&gt; ^name my-goal
+              ^args.value &lt;val&gt;)
+--&gt;
+   (&lt;s&gt; ^value &lt;val&gt;)
+&quot;
+
+sp &quot;my-goal*elaborate*default-value*0
+   (state &lt;s&gt; ^name my-goal
+             -^args.value)
+--&gt;
+   (&lt;s&gt; ^value 0)
+&quot;
+</pre>
+</div></div><p>Here's an example using NGS (note the use of a Tcl variable to provide the default value; that is not specific to NGS) and elaborating the value directly onto an operator using it:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;achieve-send-message*elaborate*send-message*priority
+   [NGS_match-active-goal achieve-send-message &lt;g&gt; &lt;s&gt;]
+   [NGS_match-proposed-operator send-message &lt;o&gt;]
+   [NGS_is-tagged &lt;g&gt; priority &lt;pri&gt;]
+--&gt;
+   (&lt;o&gt; ^priority &lt;pri&gt;)
+&quot;
+
+sp &quot;achieve-send-message*elaborate*send-message*default-priority
+   [NGS_match-active-goal achieve-send-message &lt;g&gt; &lt;s&gt;]
+   [NGS_match-proposed-operator send-message &lt;o&gt;]
+   [NGS_is-not-tagged &lt;g&gt; priority]
+--&gt;
+   (&lt;o&gt; ^priority $messageDefaultPriority)
+&quot;</pre>
+</div></div><h2 id="defaultvalues-Operators(thatarenotgoals)">Operators (that are not goals)</h2><p>If an operator is generating a goal (as in UM style goals), then I would recommend the above goal approaches. But if an operator is just a simple operator, then there are at least two possibilities: create a value elsewhere (like with goals), or to have multiple apply rules to cover each case.</p><p>Here's an example creating a separate value on the operator that is actually used. All the same caveats noted above for goals apply. Note that you can do this on either the proposed or selected operator. It probably doesn't make much difference, but note that if you have lots of proposed operators, only one of which will get selected, it would be inefficient to create all those default values on the proposed operators that will ultimately not be used. So I generally prefer to elaborate on the selected operator, as then we only do the work if we're actually going to apply the operator. Note that all i-supported rules are guaranteed to fire before any o-supported rules, so this is safe.</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;my-operator*elaborate*value
+   (state &lt;s&gt; ^operator &lt;o&gt;)
+   (&lt;o&gt; ^my-operator
+        ^value &lt;val&gt;)
+--&gt;
+   (&lt;o&gt; ^internal-value &lt;val&gt;)
+&quot;
+
+sp &quot;my-operator*elaborate*default-value*0
+   (state &lt;s&gt; ^operator &lt;o&gt;)
+   (&lt;o&gt; ^my-operator
+       -^value)
+--&gt;
+   (&lt;o&gt; ^internal-value 0)
+&quot;</pre>
+</div></div><p>Another way to do this is to make additional apply rules, one to handle the default case and one for the non-default case. If the rules only need to test a single optional value, then this is pretty much equivalent to the above. But if you have more than two optional values, then you may end up in a situation where you need separate rules to test for every combination of optional values, and that will require far more rules than the above approach. It is also often the case that apply rules are testing other non-trivial things and have non-trivial actions, and having multiple copies of that can open the door for maintenance issues (e.g., where one rule gets updated but not the other, or a typo in one but not the other). Thus I generally prefer to use the above approach. But here's the example using multiple apply rules in case you need it:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;apply*my-operator
+   (state &lt;s&gt; ^operator &lt;o&gt;)
+   (&lt;o&gt; ^name my-operator
+        ^value &lt;val&gt;)
+--&gt;
+   (&lt;s&gt; ^my-value &lt;val&gt;)
+&quot;
+
+sp &quot;apply*my-operator*default
+   (state &lt;s&gt; ^operator &lt;o&gt;)
+   (&lt;o&gt; ^name my-operator
+       -^value)
+--&gt;
+   (&lt;s&gt; ^my-value 0)
+&quot;</pre>
+</div></div><p> </p><p> </p>
+                    </div>
+
+                                        <div class="pageSection group">
+                        <div class="pageSectionHeader">
+                            <h2 id="attachments" class="pageSectionTitle">Attachments:</h2>
+                        </div>
+
+                        <div class="greybox" align="left">
+                                                            <img src="images/icons/bullet_blue.gif" height="8" width="8" alt=""/>
+                                <a href="attachments/32179160/32866362.soar">defaut-values-bad-state-elaboration.soar</a> (application/octet-stream)
+                                <br/>
+                                                            <img src="images/icons/bullet_blue.gif" height="8" width="8" alt=""/>
+                                <a href="attachments/32179160/32866363.soar">defaut-values-bad-proposed-operator-elaboration.soar</a> (application/octet-stream)
+                                <br/>
+                                                            <img src="images/icons/bullet_blue.gif" height="8" width="8" alt=""/>
+                                <a href="attachments/32179160/32866364.soar">defaut-values-bad-selected-operator-elaboration.soar</a> (application/octet-stream)
+                                <br/>
+                                                            <img src="images/icons/bullet_blue.gif" height="8" width="8" alt=""/>
+                                <a href="attachments/32179160/32866365.soar">defaut-values-state-elaboration1.soar</a> (application/octet-stream)
+                                <br/>
+                                                            <img src="images/icons/bullet_blue.gif" height="8" width="8" alt=""/>
+                                <a href="attachments/32179160/32866366.soar">defaut-values-state-elaboration2.soar</a> (application/octet-stream)
+                                <br/>
+                                                            <img src="images/icons/bullet_blue.gif" height="8" width="8" alt=""/>
+                                <a href="attachments/32179160/32866367.soar">defaut-values-state-elaboration3.soar</a> (application/octet-stream)
+                                <br/>
+                                                            <img src="images/icons/bullet_blue.gif" height="8" width="8" alt=""/>
+                                <a href="attachments/32179160/32866368.soar">defaut-values-state-elaboration4.soar</a> (application/octet-stream)
+                                <br/>
+                                                    </div>
+                    </div>
+                    
+                 
+                </div>             </div> 
+            <div id="footer">
+                <section class="footer-body">
+                    <p>Document generated by Confluence on May 05, 2015 16:08</p>
+                </section>
+            </div>
+        </div>     </body>
+</html>

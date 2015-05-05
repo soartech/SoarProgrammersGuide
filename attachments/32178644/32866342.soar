@@ -1,0 +1,60 @@
+#
+# Supporting code
+#
+
+# You can get NGS here: https://github.com/soartech/new-goal-system
+source "new-goal-system/NewGoalSystem.tcl"
+
+#
+# Example code
+#
+
+sp "create*my-goal
+   [NGS_match-goalpool <goals> <s>]
+  -(<s> ^result)
+-->
+   [NGS_create-goal <goals> my-goal <g> <gtags>]
+   [NGS_tag <gtags> value1 4]
+   [NGS_tag <gtags> value2 5]
+   [NGS_tag <gtags> result-id <s>]
+   [NGS_tag <gtags> result-attr result]
+"
+
+sp "my-goal*propose*add
+   [NGS_match-active-goal my-goal <g> <s>]
+   [NGS_is-tagged <g> value1 <value1>]
+   [NGS_is-tagged <g> value2 <value2>]
+   [NGS_is-tagged <g> result-id <id>]
+   [NGS_is-tagged <g> result-attr <attr>]
+-->
+   [NGS_create-operator add <g> <o>]
+   (<s> ^operator <o> +)
+   (<o> ^name add
+        ^value1 <value1>
+        ^value2 <value2>
+        ^result-id <id>
+        ^result-attr <attr>)
+   (write (crlf) |Proposing operator add with arguments:|)
+   (write (crlf) |   value1=|<value1>)
+   (write (crlf) |   value2=|<value2>)
+   (write (crlf) |   result-id=|<id>)
+   (write (crlf) |   result-attr=|<attr>)
+"
+ 
+sp "my-goal*apply*add
+   [NGS_match-active-goal my-goal <g> <s>]
+   [NGS_match-operator add <o> <g>]
+   (<o> ^value1 <value1>
+        ^value2 <value2>
+        ^result-id <id>
+        ^result-attr <attr>)
+-->
+   (<id> ^<attr> (+ <value1> <value2>))
+"
+
+sp "stop
+   (state <s> ^result <r>)
+-->
+   (write (crlf) |Created: (|<s>| ^result |<r>|)|)
+   (interrupt)
+"

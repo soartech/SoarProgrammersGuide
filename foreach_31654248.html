@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Bob Marinier : foreach</title>
+        <link rel="stylesheet" href="styles/site.css" type="text/css" />
+        <META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    </head>
+
+    <body class="theme-default aui-theme-default">
+        <div id="page">
+            <div id="main" class="aui-page-panel">
+                <div id="main-header">
+                    <div id="breadcrumb-section">
+                        <ol id="breadcrumbs">
+                            <li class="first">
+                                <span><a href="index.html">Bob Marinier</a></span>
+                            </li>
+                                                    <li>
+                                <span><a href="31654126.html">Soar Programmer&#39;s Guide</a></span>
+                            </li>
+                                                </ol>
+                    </div>
+                    <h1 id="title-heading" class="pagetitle">
+                                                <span id="title-text">
+                            Bob Marinier : foreach
+                        </span>
+                    </h1>
+                </div>
+
+                <div id="content" class="view">
+                    <div class="page-metadata">
+                                                Added by  bob.marinier , edited by  bob.marinier  on Apr 09, 2015
+                    </div>
+                    <div id="main-content" class="wiki-content group">
+                    <h1 id="foreach-Introduction">Introduction</h1><p>Sometimes you need to do something some number of times that won't be knowable until runtime, and even then might not be knowable directly. For example:</p><ul><li>Doing something <em>to</em> every element of a collection (e.g., a mapping operation)<ul><li>Approach 1 and 2 work</li></ul></li><li>Doing something <em>for</em> every element of a collection (e.g., counting)<ul><li>May require approach 1 if side effects build</li></ul></li></ul><h1 id="foreach-Approach1:Goalwithaterminatingoperator">Approach 1: Goal with a terminating operator</h1><p>Note this works for both NGS and Michigan approaches.</p><ul><li>Create a goal/subgoal for the processing</li><li>Propose an operator with worst preference to terminate the goal (e.g., by setting a flag)</li></ul><p>All other operators will get a chance to do their thing, and then when there's nothing left to do, the goal will terminate. Note this takes no stance on how many operators or what their nature is.</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;my-goal*propose*finish
+   (state &lt;s&gt; ^name my-goal)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; + &lt;)
+   (&lt;o&gt; ^name finish)
+&quot;
+
+sp &quot;my-goal*propose*finish*ngs
+   [NGS_match-active-goal my-goal &lt;g&gt; &lt;s&gt;]
+--&gt;
+   [NGS_create-operator finish &lt;g&gt; &lt;o&gt; &quot;+ = &lt;&quot;]
+&quot;</pre>
+</div></div><p>For example, suppose we wanted to put the &quot;^processing true&quot; flag on all elements in the objects collection:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;propose*mark-all-objects
+   (state &lt;s&gt; ^objects &lt;objs&gt;
+             -^processed true)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name mark-all-objects)
+&quot;
+
+# this operator will propose/apply once for each object
+sp &quot;mark-all-objects*propose*mark-processed
+   (state &lt;s&gt; ^name mark-all-objects
+              ^args.objects.object &lt;obj&gt;)
+  -(&lt;obj&gt; ^processing true)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; + =)
+   (&lt;o&gt; ^name mark-processed 
+        ^object &lt;obj&gt;)
+&quot;
+
+sp &quot;mark-all-objects*apply*mark-processed 
+   (state &lt;s&gt; ^name mark-all-objects
+              ^operator &lt;o&gt;)
+   (&lt;o&gt; ^name mark-processed 
+        ^object &lt;obj&gt;)
+--&gt;
+   (&lt;obj&gt; ^processed true)
+&quot;
+
+# won&#39;t get selected until all objects are processed, then returns a result to terminate the goal
+sp &quot;mark-all-objects*propose*finish
+   (state &lt;s&gt; ^name mark-all-objects)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; + &lt;)
+   (&lt;o&gt; ^name finish)
+&quot;
+
+sp &quot;mark-all-objects*apply*finish
+   (state &lt;s&gt; ^name mark-all-objects
+              ^operator.name finish
+              ^superstate &lt;ss&gt;)
+--&gt;
+   (&lt;ss&gt; ^processed true)
+&quot;</pre>
+</div></div><p>What happens is the goal is proposed, and then the finish operator is immediately proposed – but so are operators for every object. The object operators will all get selected first (one at a time), and when they have all done their thing, the finish operator will finally get selected and return a result that terminates the goal.</p><p>It should be noted that, in this simple example, it would have been easy to have the goal proposal rule test that there were no objects that weren't marked (see Approach 2 below for how to do this), thus obviating the need for a terminating operator. When avoiding a terminating operator is easy and clear, it is probably preferred. But sometimes things are more complicated and a terminating operator is the best approach (where best is defined by ease of writing, understanding, and maintaining).</p><p>It should also be noted that there's no reason the processing operator couldn't have kicked off another subgoal to do a substantial amount of work on each object.</p><p><strong>Pros:</strong></p><ul><li>Supports reactive code (i.e., doesn't tie up decision cycle with potentially long phases)</li><li>Supports complex processing (i.e., subgoals)</li></ul><p><strong>Cons:</strong></p><ul><li>(NGS) Using a worst pref means the goal won't terminate until all other (non-worst) operators from all other goals have terminated. In the worst case, this means it will never terminate. Alternatives include:<ul><li>Make terminator worse than all operators associated with that goal. If there are a lot, this can generate a large number of preferences which could slow down the decision cycle.</li><li>Condition terminator proposal on there being no other proposed operators for this goal.</li></ul></li></ul><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;my-goal*select*finish*worse-than-other-goal-operators
+   [NGS_match-active-goal my-goal &lt;g&gt; &lt;s&gt;]
+   [NGS_match-operator finish &lt;o1&gt; &lt;g&gt;]
+   [NGS_match-operator finish &lt;o2&gt; &lt;g&gt;]
+--&gt;
+   (&lt;s&gt; ^operator &lt;o1&gt; &lt; &lt;o2&gt;)
+&quot;
+
+sp &quot;my-goal*propose*finish*no-other-goal-operators-proposed
+   [NGS_match-active-goal my-goal &lt;g&gt; &lt;s&gt;]
+  -{
+    (&lt;s&gt; ^operator &lt;o&gt; +)
+    (&lt;o&gt; ^goal &lt;g&gt;
+        -^name my-goal)
+   }
+--&gt;
+   [NGS_create-operator finish &lt;g&gt; &lt;o&gt;]
+&quot;</pre>
+</div></div><h1 id="foreach-Approach2:Oneoperator,multipleapplies">Approach 2: One operator, multiple applies</h1><p>In this approach, we piggyback many applies on a single operator.</p><ul><li>Propose operator to kick off processing</li><li>Apply rules fire as many times as desired</li></ul><p>Here's the same example from above, but with a single operator:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;"># note: using this elaboration to create a single flag. If we incorporated these conditions into the operator proposal, it would get proposed a lot. This might be ok, but it&#39;s inefficient.
+sp &quot;elaborate*objects-not-processed 
+   (state &lt;s&gt; ^objects.object &lt;obj&gt;)
+  -(&lt;obj&gt; ^processing true)
+--&gt;
+   (&lt;s&gt; ^not-processed true)
+&quot;
+
+sp &quot;propose*mark-processed 
+   (state &lt;s&gt; ^objects &lt;objs&gt;
+              ^not-processed true)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name mark-processed 
+        ^objects &lt;obj&gt;)
+&quot;
+
+# this will fire many times in parallel, once for each object
+sp &quot;apply*mark-processed 
+   (state &lt;s&gt; ^operator &lt;o&gt;)
+   (&lt;o&gt; ^name mark-processed 
+        ^objects.object &lt;obj&gt;)
+--&gt;
+   (&lt;obj&gt; ^processed true)
+&quot;  </pre>
+</div></div><p>Note that there will be a single wave of applies, during which all objects are marked in parallel. Once they are marked, the elaboration will retract and the operator proposal will retract.</p><p><strong>Pros:</strong></p><ul><li>Avoids overhead of decision cycle by doing everything in parallel at once (although overhead should be pretty minimal)</li><li>Ensures that the processing happens &quot;atomically&quot; (i.e., there is no state where some objects are marked and some aren't). This could be important in some cases, although if it is you might reconsider your design as it's pretty brittle.</li></ul><p><strong>Cons:</strong></p><ul><li>Supporting multiple waves of rule firings is difficult. In the example, everything must occur in a single wave (the operator will retract after that, so there will be no second wave). Of course, the proposal could be conditioned on something that won't happen until the nth wave of rule firings, but in complex systems, getting the multiple waves to happen the way you want is often difficult.</li><li>Reduces reactivity: The agent is stuck in this decision until all the applies have fired – it can't get new input or work on anything else in the meantime. If the number of objects is small, this is not a big deal. But if there are 1000 objects, this could matter.<ul><li>It should be noted that in some cases this could be advantageous – e.g., it gives an opportunity to do something to every object on the input-link before they potentially disappear in the next cycle. But this seems like a brittle design – there may be better ways to deal with disappearing input.</li></ul></li><li>If the processing has side effects, doing them all in parallel may not work. E.g., counting is an inherently sequential process, and thus Approach 1 is necessary.</li><li>Doesn't support complex (i.e., subgoal) processing of each object</li></ul>
+                    </div>
+
+                    
+                 
+                </div>             </div> 
+            <div id="footer">
+                <section class="footer-body">
+                    <p>Document generated by Confluence on May 05, 2015 16:08</p>
+                </section>
+            </div>
+        </div>     </body>
+</html>

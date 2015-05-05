@@ -1,0 +1,50 @@
+#
+# Example code
+#
+
+sp "elaborate*name*my-goal
+   (state <s> ^superstate nil)
+-->
+   (<s> ^name my-goal)
+"
+
+sp "my-goal*elaborate*default-complete*false
+   (state <s> ^name my-goal
+             -^complete true)
+-->
+   (<s> ^complete false)
+"
+
+sp "my-goal*propose*set-complete*true
+   (state <s> ^name my-goal)
+-->
+   (<s> ^operator <o> +)
+   (<o> ^name set-complete*true)
+"
+
+sp "my-goal*apply*set-complete*true
+   (state <s> ^name my-goal
+              ^operator.name set-complete*true)
+-->
+   (<s> ^complete true)
+"
+
+sp "monitor*complete-value
+   (state <s> ^complete <c>
+             -^complete <> <c>)
+-->
+   (write (crlf) |complete = |<c>| (and no other value)|)
+"
+
+sp "monitor*complete-two-values
+   (state <s> ^complete true false)
+-->
+   (write (crlf) |complete = true AND false|)
+"
+
+# this is just to prevent a state no-change cascade
+sp "stop
+   (state <s> ^superstate.superstate nil)
+-->
+   (interrupt)
+"

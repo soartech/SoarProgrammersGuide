@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Bob Marinier : concurrent goals</title>
+        <link rel="stylesheet" href="styles/site.css" type="text/css" />
+        <META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    </head>
+
+    <body class="theme-default aui-theme-default">
+        <div id="page">
+            <div id="main" class="aui-page-panel">
+                <div id="main-header">
+                    <div id="breadcrumb-section">
+                        <ol id="breadcrumbs">
+                            <li class="first">
+                                <span><a href="index.html">Bob Marinier</a></span>
+                            </li>
+                                                    <li>
+                                <span><a href="31654126.html">Soar Programmer&#39;s Guide</a></span>
+                            </li>
+                                                </ol>
+                    </div>
+                    <h1 id="title-heading" class="pagetitle">
+                                                <span id="title-text">
+                            Bob Marinier : concurrent goals
+                        </span>
+                    </h1>
+                </div>
+
+                <div id="content" class="view">
+                    <div class="page-metadata">
+                                                Added by  bob.marinier , edited by  bob.marinier  on Apr 09, 2015
+                    </div>
+                    <div id="main-content" class="wiki-content group">
+                    <h1 id="concurrentgoals-Introduction">Introduction</h1><p>It is common to have an agent that must balance work across multiple goals simultaneously. A common case is an agent that is working on a long-running goal, but still needs to respond immediately to messages that it gets during that goal. Or the goal could be &quot;blown away&quot; by the Goal Dependency Set (aka GDS; see the Soar manual for details). This problem is really specific to Michigan style goals, as the primary purpose of NGS is to solve this problem.</p><p>There are several possible approaches:</p><ul><li>Use floating subgoals to handle short goals during longer goals</li><li>Use joint goals to combine goals</li><li>Make goals interruptible (and re-entrant, if necessary)</li><li>Use NGS (or something like it)</li></ul><p>Of course, doing these things means introducing concurrency to your agent, and that potentially brings with it all the difficulties of concurrent programming. Thus, you may also want to read <a href="controlling-access-to-shared-resources_32178950.html">controlling access to shared resources</a>.</p><h1 id="concurrentgoals-Approach1:Floatingsubgoals">Approach 1: Floating subgoals</h1><p>This approach was used in Tac-Air Soar. In that system, the agent would have long-living goals, like flying to a waypoint, during which it would still need to respond to other events (such as radio messages). Thus, goals like responding to radio messages were made floating so that if a radio message appeared on the input-link, a subgoal to process it was simply inserted at the bottom of the goal stack to handle the message, and then the main goal would proceed as usual.</p><p>Floating subgoals are described in <a href="generic-processes_32178933.html">generic processes</a>, so look there for examples.</p><p>Floating subgoals have some downsides in this case:</p><ul><li>Conceptually, it doesn't make sense: responding to a radio message is not really a subgoal of flying to a waypoint. This bothers some people (especially Randy Jones, but I think also John Laird).</li><li>It doesn't really work with chunking: responding to the radio message may create a chunk, but that chunk may never be usable since it depends on a bunch of irrelevant context from the parent goal. And you specifically don't want the chunk to fire in the future and interrupt the main goal.</li></ul><p>Because of these issues, other approaches have been developed since, including some of the architectural changes that resulted in Soar 8 (namely, the introduction of the GDS). That said, there are proper uses of floating subgoals, such as when they are properly related to the parent goals. But as a way to achieve concurrency, many people don't like them.</p><h1 id="concurrentgoals-Approach2:Usejointgoals">Approach 2: Use joint goals</h1><p>This approach essentially involves creating a new goal that combines two other goals. Thus, instead of having a walk goal and a chew-gum goal, you would create a walk-and-chew-gum goal. This joint goal would then have operators, preferences, subgoals, etc. to manage the interleaving of these two goals. This is a completely manual process – the programmer has to construct the joint goal in whatever way makes sense. Furthermore, you have to construct these joint goals for every combination of goals you might ever want to do at the same time. Given this, most people avoid this approach, unless they have a special need or only need one joint goal, etc.</p><p>Note that typically the joint goal is replacing the two separate goals – it may be possible to start with just a walk goal, and then switch to the joint goal if the need to chew gum comes up, but this involves interrupting the original walk goal. It may often be easier to just use the joint goal to begin with, and if the agent never ends up chewing gum, it's no big deal.</p><h1 id="concurrentgoals-Approach3:Makegoalsinterruptible">Approach 3: Make goals interruptible</h1><p>The idea here is that you design the goals such that they can be interrupted. Thus, if something else comes up, you can switch to another goal and then come back to the original goal.</p><p>In the simple case, interruption simply means starting over. Here's an example where the agent creates a subgoal to count to 100. But if a message shows up on the input-link, it will propose an operator to handle that message – and that operator has a best preference, and thus will &quot;blow away&quot; the counting subgoal. When the message handling operator/goal is complete, the subgoal to count to 100 will be recreated and the agent will start over from 0.</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;propose*count-to-100
+   (state &lt;s&gt; ^superstate nil
+             -^counting-complete)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name count-to-100)
+&quot;
+
+# no apply, so generate subgoal
+
+sp &quot;count-to-100*propose*initialize
+   (state &lt;s&gt; ^name count-to-100
+             -^count)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name initialize)
+&quot;
+
+sp &quot;count-to-100*apply*initialize
+   (state &lt;s&gt; ^name count-to-100
+              ^operator.name initialize)
+--&gt;
+   (&lt;s&gt; ^count 0)
+&quot;
+
+sp &quot;count-to-100*propose*add
+   (state &lt;s&gt; ^name count-to-100
+              ^count &lt;c&gt;)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name add)
+&quot;
+
+sp &quot;count-to-100*apply*add
+   (state &lt;s&gt; ^name count-to-100
+              ^operator.name add
+              ^count &lt;c&gt;)
+--&gt;
+   (&lt;s&gt; ^count &lt;c&gt; - (+ &lt;c&gt; 1))
+&quot;
+
+sp &quot;count-to-100*propose*finish
+   (state &lt;s&gt; ^name count-to-100
+              ^count 100)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; + &gt;) # when we get to 100, need to finish, not keep adding
+   (&lt;o&gt; ^name finish)
+&quot;
+
+sp &quot;count-to-100*apply*finish
+   (state &lt;s&gt; ^name count-to-100
+              ^operator.name finish
+              ^superstate &lt;ss&gt;)
+--&gt;
+   (&lt;ss&gt; ^counting-complete true)
+&quot;
+
+sp &quot;propose*respond-to-message
+   (state &lt;s&gt; ^io.input-link.message &lt;m&gt;)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; + &gt;) # responding to messages is the most important thing
+   (&lt;o&gt; ^name respond-to-message)
+&quot;
+
+# some other code that responds to the message</pre>
+</div></div><p>This approach works well when the goals are short (relative to the frequency of interruptions), performance isn't important, and the goals don't have important side effects. If the goal is long or interruptions are frequent, it may never finish since it is constantly starting over. If performance is important, starting over may result in unacceptable performance (especially if the goal is doing expensive processing). If there are side effects, then starting over may not work at all – e.g., if the agent is counting and reporting each count to an external system, starting over may screw up the external system.</p><p>Thus, for more complex cases where these other things matter, the goal needs to be designed to be re-entrant. This means that the goal can be interrupted at any time, but when it resumes it can pick up where it left off. This is accomplished by storing whatever critical data is needed to resume processing on the top-state (any data stored on substates will be lost when the goal is interrupted). In our counting example, the current value would be stored on the top-state. When the counting goal is interrupted and resumed, it would simply start counting again from whatever value is on the top-state. When the goal completes, it is responsible for cleaning up any top-state structures it created.</p><p>Here's the counting example again, but this time the agent picks up where it left off after interruption. It does this by creating the count on the top-state. An elaboration rule links the substate to this structure so all the substate rules don't have to keep referring to the top-state (this makes it look like the substate rules are operating locally, which is easier to read if a bit misleading). When the goal is interrupted and resumes, the subgoal is recreated, but the initialize operator doesn't fire – because the count structure already exists and has been linked to the substate. Thus, the add operator fires, adding to whatever the current count is – so the agent picks up where it left off. At the end, the finish operator cleans up the top-state structure.</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;propose*count-to-100
+   (state &lt;s&gt; ^superstate nil
+             -^counting-complete)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name count-to-100)
+&quot;
+
+# no apply, so generate subgoal
+
+sp &quot;count-to-100*propose*initialize
+   (state &lt;s&gt; ^name count-to-100
+             -^data.count)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name initialize)
+&quot;
+
+sp &quot;count-to-100*apply*initialize
+   (state &lt;s&gt; ^name count-to-100
+              ^operator.name initialize
+              ^top-state &lt;ts&gt;)
+--&gt;
+   (&lt;ts&gt; ^count-to-100 &lt;ct100&gt;)
+   (&lt;ct100&gt; ^count 0)
+&quot;
+
+sp &quot;count-to-100*elaborate*link-to-top-state-data
+   (state &lt;s&gt; ^name count-to-100
+              ^top-state.count-to-100 &lt;ct100&gt;)
+--&gt;
+   (&lt;s&gt; ^data &lt;ct100&gt;)
+&quot;
+
+sp &quot;count-to-100*propose*add
+   (state &lt;s&gt; ^name count-to-100
+              ^data.count &lt;c&gt;)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name add)
+&quot;
+
+sp &quot;count-to-100*apply*add
+   (state &lt;s&gt; ^name count-to-100
+              ^operator.name add
+              ^data &lt;d&gt;)
+   (&lt;d&gt; ^count &lt;c&gt;)
+--&gt;
+   (&lt;d&gt; ^count &lt;c&gt; - (+ &lt;c&gt; 1))
+&quot;
+
+sp &quot;count-to-100*propose*finish
+   (state &lt;s&gt; ^name count-to-100
+              ^data.count 100)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; + &gt;) # when we get to 100, need to finish, not keep adding
+   (&lt;o&gt; ^name finish)
+&quot;
+
+sp &quot;count-to-100*apply*finish
+   (state &lt;s&gt; ^name count-to-100
+              ^operator.name finish
+              ^superstate &lt;ss&gt; # could just use top-state in this example, but this handles the case where the calling state is not the top-state
+              ^top-state &lt;ts&gt;)
+   (&lt;ts&gt; ^count-to-100 &lt;ct100&gt;)
+--&gt;
+   (&lt;ss&gt; ^counting-complete true)
+   (&lt;ts&gt; ^count-to-100 &lt;ct100&gt; -)
+&quot;
+
+sp &quot;propose*respond-to-message
+   (state &lt;s&gt; ^io.input-link.message &lt;m&gt;)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; + &gt;) # responding to messages is the most important thing
+   (&lt;o&gt; ^name respond-to-message)
+&quot;
+
+# some other code that responds to the message</pre>
+</div></div><p>In general, this approach is compatible with chunking. Note that only data that is needed to resume the subgoal needs to be stored on the top-state. If there is other intermediate data that is irrelevant for resuming processing, that can be stored on the substate (and you should, since that will avoid unnecessary chunks and keep the top state small, which helps episodic memory).</p><p>This seems like the sort of approach that could be generalized. Indeed, Sam Wintermute tried to create a general set of rules that would automatically create top-state structures for all substates, linking those to the substates so they could appear to operate locally but actually be saving data at the top-state. Sam's approach mostly worked, but ran into problems. First, his approach used the name of the goal to link to the top-state structure. If there were multiple goals with the same name (e.g., if you were in the middle of handing a radio message, and then another more important radio message came though), this didn't work – which structure went with which goal? Without some domain-specific means of telling them apart, this was a problem (and to be clear, this is a problem if you were doing it by hand, too). The other issue was automating cleanup of the top-state structures – how would the agent know that the goals were complete and thus the associated structures could be removed? It seems that either this needs to be done in a domain-specific way, or else the approach needs to impose a requirement on subgoals (e.g., that they put a clean-me-up flag on the top-state structures when they are finished). So if you want to attempt your own generalization, you might talk to Sam to see if you can get his code, and you should at least consider these issues.</p><h1 id="concurrentgoals-Approach4:UseNGS(orsomethingsimilar)">Approach 4: Use NGS (or something similar)</h1><p>The primary purpose of NGS is to support concurrent goals. It does this by taking the top-state structure approach to the extreme – all information, including the goals themselves, is stored on the top-state. The basic approach is to create a goals structure, and then any time you want to create a goal you simply add it to the goals structure. When the goal is complete, you remove it from the structure (or if it's i-supported, it removes itself). Subgoals are supported by creating links between goals. When you want to propose an operator for a goal, you simply test that the goal is in the goals structure and then propose the operator. Typically, all operators are indifferent to each other, so Soar just randomly picks from all the operators across all the goals – this is what allows for interleaving. Data specific to a goal is typically stored on the goal structure. There are usually no architectural subgoals.</p><p>NGS is a particular generalized version of this that has been wrapped up in a bunch of Tcl macros. But there is no reason you have to use NGS if you want to use this approach. Some people find NGS overly complex. Randy Jones claims he can create a simple version of this using just 3 rules (although he probably really wants more like 8). Mike Quist has also created his own simple version. Using a simple version also means you don't necessarily need Tcl, which some people don't like.</p><p>Anyway, here's the NGS version of the counting example. What happens here is we create the goal i-supported, so it automatically goes away when completed. The count is stored on the goal, which is on the top-state, so when it gets interrupted and resumes, it just keeps going from where it left off. Note that this is more similar to the simple example above, but like the more complex example, it avoids having to start over. Indeed, unlike the examples above, the counting goal structure never goes away.</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;create-goal*count-to-100
+   [NGS_match-goalpool &lt;goals&gt; &lt;s&gt;]
+  -(&lt;s&gt; ^counting-complete)
+--&gt;
+   [NGS_create-goal &lt;goals&gt; count-to-100]
+&quot;
+
+sp &quot;count-to-100*propose*initialize
+   [NGS_match-active-goal count-to-100 &lt;g&gt; &lt;s&gt;]
+  -(&lt;g&gt; ^count)
+--&gt;
+   [NGS_create-operator initialize &lt;g&gt; &lt;o&gt;]
+&quot;
+
+sp &quot;count-to-100*apply*initialize
+   [NGS_match-active-goal count-to-100 &lt;g&gt; &lt;s&gt;]
+   [NGS_match-operator initialize &lt;o&gt; &lt;g&gt;]
+--&gt;
+   (&lt;g&gt; ^count 0)
+&quot;
+
+sp &quot;count-to-100*propose*add
+   [NGS_match-active-goal count-to-100 &lt;g&gt; &lt;s&gt;]
+   (&lt;g&gt; ^count &lt;c&gt;)
+--&gt;
+   [NGS_create-operator add &lt;g&gt; &lt;o&gt;]
+&quot;
+
+sp &quot;count-to-100*apply*add
+   [NGS_match-active-goal count-to-100 &lt;g&gt; &lt;s&gt;]
+   [NGS_match-operator add &lt;o&gt; &lt;g&gt;]
+   (&lt;g&gt; ^count &lt;c&gt;)
+--&gt;
+   (&lt;g&gt; ^count &lt;c&gt; - (+ &lt;c&gt; 1))
+&quot;
+
+sp &quot;count-to-100*propose*finish
+   [NGS_match-active-goal count-to-100 &lt;g&gt; &lt;s&gt;]
+   (&lt;g&gt; ^count 100)
+--&gt;
+   [NGS_create-operator finish &lt;g&gt; &lt;o&gt; &quot;+ = &gt;&quot;] # when we get to 100, need to finish, not keep adding
+&quot;
+
+sp &quot;count-to-100*apply*finish
+   [NGS_match-active-goal count-to-100 &lt;g&gt; &lt;s&gt;]
+   [NGS_match-operator finish &lt;o&gt; &lt;g&gt;]
+--&gt;
+   (&lt;s&gt; ^counting-complete true)
+&quot;
+
+sp &quot;create-goal*respond-to-message
+   [NGS_match-goalpool &lt;goals&gt; &lt;s&gt;]
+   (&lt;s&gt; ^io.input-link.message &lt;m&gt;)
+--&gt;
+   [NGS_create-goal &lt;goals&gt; respond-to-message]
+&quot;
+
+# some other code that responds to the message</pre>
+</div></div><p>NGS-like approaches are concurrent and re-entrant by default. This means that it can be more difficult to encode a sequential process that you don't want interrupted, and that it is easy to run into standard concurrency problems (e.g., the data that some goal is working on gets modified by some other goal). See <a href="controlling-access-to-shared-resources_32178950.html">controlling access to shared resources</a> for approaches to dealing with these issues. Of course, since everything takes place on the top-state, this approach is not chunking compatible.</p><p>Note that it has been suggested that perhaps NGS and Michigan style can be combined, with NGS goals providing the top-state structures for persistent data used by Michigan style goals. To my knowledge, though, no one has ever tried this in a real system.</p>
+                    </div>
+
+                    
+                 
+                </div>             </div> 
+            <div id="footer">
+                <section class="footer-body">
+                    <p>Document generated by Confluence on May 05, 2015 16:08</p>
+                </section>
+            </div>
+        </div>     </body>
+</html>

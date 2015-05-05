@@ -1,0 +1,25 @@
+#
+# Example code
+#
+
+set maxSpeed 50.0
+set color_red red
+set color_blue blue
+set ilink io.input-link
+set olink io.output-link
+ 
+sp "create-command*notify*max-speed-exceeded
+   (state <s> ^$ilink.vehicle.speed > $maxSpeed
+              ^$olink <ol>)
+-->
+   (<ol> ^notify.max-speed-exceeded true)
+   (write (crlf) |Reporting max speed exceeded|)
+   (interrupt)
+"
+
+# fake some input
+sp "create-input
+   (state <s> ^$ilink <il>)
+-->
+   (<il> ^vehicle.speed 100.0)
+"

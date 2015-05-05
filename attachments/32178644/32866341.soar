@@ -1,0 +1,93 @@
+#
+# Example code
+#
+
+sp "propose*my-goal
+   (state <s> ^superstate nil
+             -^result)
+-->
+   (<s> ^operator <o> +)
+   (<o> ^name my-goal
+        ^value1 4
+        ^value2 5
+        ^result-id <s>
+        ^result-attr result)
+"
+
+sp "my-goal*propose*add
+   (state <s> ^name my-goal
+              ^args <args>)
+   (<args> ^value1 <value1>
+           ^value2 <value2>
+           ^result-id <id>
+           ^result-attr <attr>)
+-->
+   (<s> ^operator <o> +)
+   (<o> ^name add
+        ^value1 <value1>
+        ^value2 <value2>
+        ^result-id <id>
+        ^result-attr <attr>)
+   (write (crlf) |Proposing operator add with arguments:|)
+   (write (crlf) |   value1=|<value1>)
+   (write (crlf) |   value2=|<value2>)
+   (write (crlf) |   result-id=|<id>)
+   (write (crlf) |   result-attr=|<attr>)
+"
+ 
+sp "my-goal*apply*add
+   (state <s> ^name my-goal
+              ^operator <o>)
+   (<o> ^name add
+        ^value1 <value1>
+        ^value2 <value2>
+        ^result-id <id>
+        ^result-attr <attr>)
+-->
+   (<id> ^<attr> (+ <value1> <value2>))
+"
+
+sp "stop
+   (state <s> ^result <r>)
+-->
+   (write (crlf) |Created: (|<s>| ^result |<r>|)|)
+   (interrupt)
+"
+
+#
+# Supporting code
+#
+
+##!
+# @brief Appends the name of the selected operator that triggered us.
+# @type state-elaboration
+sp {elaborate*state*name
+   (state <s> ^superstate.operator.name <name>)
+-->
+   (<s> ^name <name>)
+}
+
+# Support for treating Michigan style subgoals like functions
+ 
+##!
+# @brief
+# @type state-elaboration
+#
+# automatically copy any arguments from the superoperator to the local state
+sp {elaborate*state*operator-args-base
+   (state <s> ^superstate.operator)
+-->
+   (<s> ^args <args>)
+}
+ 
+##!
+# @brief
+# @type state-elaboration
+#
+# automatically copy any arguments from the superoperator to the local state
+sp {elaborate*state*operator-args
+   (state <s> ^superstate.operator.<att> <val>
+              ^args <args>)
+-->
+   (<args> ^<att> <val>)
+}

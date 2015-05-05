@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Bob Marinier : General guidance</title>
+        <link rel="stylesheet" href="styles/site.css" type="text/css" />
+        <META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    </head>
+
+    <body class="theme-default aui-theme-default">
+        <div id="page">
+            <div id="main" class="aui-page-panel">
+                <div id="main-header">
+                    <div id="breadcrumb-section">
+                        <ol id="breadcrumbs">
+                            <li class="first">
+                                <span><a href="index.html">Bob Marinier</a></span>
+                            </li>
+                                                    <li>
+                                <span><a href="31654126.html">Soar Programmer&#39;s Guide</a></span>
+                            </li>
+                                                </ol>
+                    </div>
+                    <h1 id="title-heading" class="pagetitle">
+                                                <span id="title-text">
+                            Bob Marinier : General guidance
+                        </span>
+                    </h1>
+                </div>
+
+                <div id="content" class="view">
+                    <div class="page-metadata">
+                                                Added by  bob.marinier , edited by  bob.marinier  on Apr 22, 2015
+                    </div>
+                    <div id="main-content" class="wiki-content group">
+                    <h1 id="Generalguidance-Introduction">Introduction</h1><p>This is a collection of topics that have to do with general Soar style. It is not specific to a particular goal method.</p><h1 id="Generalguidance-Goalsvs.Tasks">Goals vs. Tasks</h1><p>It is very common for Soar programmers to not distinguish between goals and tasks. This can lead to sloppy and inflexible code.</p><p>Conceptually, goals are things that you want to achieve or maintain, while tasks are the things you do to accomplish goals. For example, suppose you want to face left of your current direction. You could create a goal to turn left, but this is really overly specific – the goal is not to turn left, the goal is to face left. By making this distinction, you make it easy to support multiple ways of accomplishing the goal. Turning left is one option – but so is turning right (although you'll have to turn further of course). Maybe you can get someone to pick you up and turn you (in either direction). These are all specific tasks that can be employed to accomplish the goal.</p><p>Of course, goals can have subgoals that embody specific steps in a particular approach to the goal. For example, if I'm going to get someone to turn me, I may first need to find someone. This can be accomplished in a number of ways (calling out vocally, sending an email, waiting until someone walks by, etc.). Since we now support multiple ways of accomplishing getting someone to turn us, I would consider that to be a subgoal. To me, that's the critical distinction: if there are multiple ways of doing something, the something is a goal. Generally speaking, most tasks can be converted to goals. It really comes down to how the conditions are encoded. If the conditions testing for a desired state, then it's probably a goal. If the conditions are just testing that a goal is active, then it's probably a task.</p><p>There are at least two major kinds of goals: achievement goals and maintenance goals. Achievement goals are like the turning example above: you want to engage some process until a desired state is achieved, and then the goal is complete. Maintenance goals are about maintaining a current state. For example, an aircraft may have the goal of maintaining its current altitude. Unlike achievement goals, this goal does not go away when the desired state is achieved.</p><p>Some people prefer to formalize the goal type in the name of the goal: for example, instead of calling the goal face-left, they would name it achieve-face-left. This helps to clarify that this is in fact a goal (as opposed to a task), and also helps distinguish it from maintain-face-left (which would be a different goal, but without the goal type is indistinguishable from achieve-face-left). Indeed, if you aren't sure if something is a goal or a task, consider whether it makes sense to name it with achieve or maintain at the start of its name.</p><h1 id="Generalguidance-FileNamesandDirectoryStructures">File Names and Directory Structures</h1><p>Soar does not care where you put your code. You could put all your rules in one file, or each rule in its own file. The only time ordering matters is that Tcl code needs to be defined before it is used, and rare commands like multi-attributes.</p><p>That said, there are sensible ways to structure code. My personal approach is to organize around operators and goals, so that the directory hierarchy mirrors the goal hierarchy. Each operator gets its own file named after the operator (containing the proposals, applies, operator elaborations, and any monitor rules), and each goal gets its own directory, named after the goal (containing all operator files for that goal, as well as any state elaborations for that goal). Shared operators/goals can go in a separate directory named something like &quot;floating-operators&quot;. Impasses that are not ONCs get directories named after the impasse. The rules in each directory are generally loaded by a load.soar file or other generic file (Soar IDE and Soar Editor create these for you using their preferred naming conventions). load.soar also loads the load.soar files in its immediate child directories. Thus, loading the top-level load.soar will load all the rules.</p><p>Indeed, VisualSoar requires this style, and Soar Editor and Soar IDE support it but let you do anything.</p><p>For example:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: false" style="font-size:12px;">/my-agent
+   load.soar # source commands for other files in this directory and the load.soar&#39;s of direct children
+   elaborations.soar # general rules, like those in the Soar Utility code
+   initialize.soar # the initialize operator propose/apply
+   do-cool-thing.soar # the rule(s) that creates the goal
+   /do-cool-thing  # the do-cool-thing goal
+      load.soar # source commands for other files in this directory and the load.soar&#39;s of direct children
+      elaborations.soar # elaborations specific to the do-cool-thing goal
+      something.soar # the something operator propose/apply
+      retrieve-smem.soar # the proposal for the shared retrieve-smem goal
+      finish.soar # the finish operator propose/apply
+   /shared
+      retrieve-smem.soar # documentation on how to use retrieve-smem, but no rules
+      /retrieve-smem # the retrieve-smem goal
+         load.soar # source commands for other files in this directory and the load.soar&#39;s of direct children
+         elaborations.soar # elaborations specific to the retrieve-smem goal
+         execute-command.soar # the execute-command operator propose/apply
+         # etc.</pre>
+</div></div><p>You don't have to strictly follow this convention (or at all). The point is simply to have some reasonable organization to the code. Doing it in this way makes it easy to find rules when you're debugging, and to get a sense of how the program works just from looking at the directory structure.</p><p>That said, there is at least one drawback: it is easy to create deep structures that ultimately exceed the path length limit of your OS (I use windows which has a limit of something like 260 characters, and this happens to me occasionally). You probably won't notice right away – you can create the structures as deep as you want, and they will load in Soar no problem. But if you try to copy your agent elsewhere, the copy may fail partway, claiming it can't handle some file because the path is too long. You could restructure your agent to avoid this, but it's also very reasonable to just abbreviate some of your directory names (so they might not exactly match the associated goals, but it'll be close enough to avoid confusion).</p><h1 id="Generalguidance-TestGoalNameinApplyRules">Test Goal Name in Apply Rules</h1><p>This is not a hard-and-fast rule, as there may be special cases where you don't want to do this. But it is a good rule of thumb: test the name of the goal in apply rules. In a complex agent with lots of goals and subgoals, you will eventually run into situations where two different goals are using an operator with the same name, and their apply rules will conflict. This is especially common with very generic steps – lots of goals may have an init operator. By testing the name of the goal in the apply rule, you avoid having apply rules from other goals firing in the wrong place.</p><p>In this example, two different goals have an operator named init, but these are not the same operator – they have different effects. Without the test for the name of the state in the apply rules, both states would get both effects, which is probably bad.</p><p>Here's an example in Michigan style (executable example <a href="attachments/32178644/32866336.soar">here</a>):</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;my-goal1*propose*init
+   (state &lt;s&gt; ^name my-goal1
+             -^initialized true)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name init)
+&quot;
+
+sp &quot;my-goal1*apply*init
+   (state &lt;s&gt; ^name my-goal1
+              ^operator.name init)
+--&gt;
+   (&lt;s&gt; ^initialized true
+        ^color blue)
+&quot;
+
+sp &quot;my-goal2*propose*init
+   (state &lt;s&gt; ^name my-goal2
+             -^initialized true)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name init)
+&quot;
+sp &quot;my-goal2*apply*init
+   (state &lt;s&gt; ^name my-goal2
+              ^operator.name init)
+--&gt;
+   (&lt;s&gt; ^initialized true
+        ^color red)
+&quot;
+</pre>
+</div></div><p>Here's the same example using NGS (executable example <a href="attachments/32178644/32866337.soar">here</a>):</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;my-goal1*propose*init
+   [NGS_match-active-goal my-goal1 &lt;g&gt; &lt;s&gt;]
+   [NGS_is-not-tagged &lt;g&gt; initialized]
+--&gt;
+   [NGS_create-operator init &lt;g&gt; &lt;o&gt;]
+&quot;
+
+sp &quot;my-goal1*apply*init
+   [NGS_match-active-goal my-goal1 &lt;g&gt; &lt;s&gt;]
+   [NGS_match-operator init &lt;o&gt; &lt;g&gt; &lt;gtags&gt;]
+--&gt;
+   [NGS_tag &lt;gtags&gt; initialized true]
+   [NGS_tag &lt;gtags&gt; color blue]
+&quot;
+
+sp &quot;my-goal2*propose*init
+   [NGS_match-active-goal my-goal2 &lt;g&gt; &lt;s&gt;]
+   [NGS_is-not-tagged &lt;g&gt; initialized]
+--&gt;
+   [NGS_create-operator init &lt;g&gt; &lt;o&gt;]
+&quot;
+
+sp &quot;my-goal2*apply*init
+   [NGS_match-active-goal my-goal2 &lt;g&gt; &lt;s&gt;]
+   [NGS_match-operator init &lt;o&gt; &lt;g&gt; &lt;gtags&gt;]
+--&gt;
+   [NGS_tag &lt;gtags&gt; initialized true]
+   [NGS_tag &lt;gtags&gt; color red]
+&quot;</pre>
+</div></div><p> </p><p>Of course, there are other solutions; e.g., name these operators init-my-goal1 and init-my-goal2. This even has a (very slight) performance/memory advantage. But now goal information is encoded in the name of the operator, as opposed to directly using it. If the name of the goal changes, this could lead to a disconnect where the name of the operator doesn't make sense, etc. Another approach would be to add a goal-name augmentation (e.g., ^goal my-goal1) to the operators. In general, I think testing the name of the goal directly (either using a goal test or an operator augmentation) is preferable to directly encoding the goal name in the operator name, unless you have a special need.</p><h1 id="Generalguidance-TreatOperatorsandGoalslikeFunctionCalls">Treat Operators and Goals like Function Calls</h1><p>In Soar, all rules have access to all of working memory. This leads to code that treats all data as global (which is generally considered bad in most languages), with rules testing structures from all over memory. This makes it very difficult to know what the scope of an operator or goal is. This, in turn, makes the code hard to understand and maintain.</p><p>To improve this, I recommend explicitly linking an operator or goal to the data it will use and/or modify. For an operator, it might look like this (executable example <a href="attachments/32178644/32866339.soar">here</a>):</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;my-goal*propose*add
+   (state &lt;s&gt; ^name my-goal
+              ^value1 &lt;value1&gt;
+              ^value2 &lt;value2&gt;)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name add
+        ^value1 &lt;value1&gt;
+        ^value2 &lt;value2&gt;)
+&quot;
+
+sp &quot;my-goal*apply*add
+   (state &lt;s&gt; ^name my-goal
+              ^operator &lt;o&gt;)
+   (&lt;o&gt; ^name add
+        ^value1 &lt;value1&gt;
+        ^value2 &lt;value2&gt;)
+--&gt;
+   (&lt;s&gt; ^result (+ &lt;value1&gt; &lt;value2&gt;))
+&quot;</pre>
+</div></div><p>In this case, all the data required by the operator is gathered in one place – the proposal. It's added to the operator, and thus the apply only need to look at the operator for the data it needs.</p><p>This can be taken a step further by specifying the result location in the operator as well. This is especially useful in floating operators (and subgoals) that may be used across many different goals. Here's an example demonstrating this (executable example <a href="attachments/32178644/32866340.soar">here</a>):</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;my-goal*propose*add
+   (state &lt;s&gt; ^name my-goal
+              ^value1 &lt;value1&gt;
+              ^value2 &lt;value2&gt;)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name add
+        ^value1 &lt;value1&gt;
+        ^value2 &lt;value2&gt;
+        ^result-id &lt;s&gt;
+        ^result-attr result)
+&quot;
+
+sp &quot;my-goal*apply*add
+   (state &lt;s&gt; ^name my-goal
+              ^operator &lt;o&gt;)
+   (&lt;o&gt; ^name add
+        ^value1 &lt;value1&gt;
+        ^value2 &lt;value2&gt;
+        ^result-id &lt;id&gt;
+        ^result-attr &lt;attr&gt;)
+--&gt;
+   (&lt;id&gt; ^&lt;attr&gt; (+ &lt;value1&gt; &lt;value2&gt;))
+&quot;</pre>
+</div></div><p>The same general principles apply to goals and subgoals: pass them the data you expect them to use. For Michigan-style goals, I have a couple helper rules below. Essentially, you attach the arguments to the proposed operator just like we did above. When that triggers an operator no-change impasse, these rules will create an &quot;args&quot; structure in the subgoal and link/copy whatever is on the operator into that args structure:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">##!
+# @brief
+# @type state-elaboration
+#
+# automatically copy any arguments from the superoperator to the local state
+sp {elaborate*state*operator-args-base
+   (state &lt;s&gt; ^superstate.operator)
+--&gt;
+   (&lt;s&gt; ^args &lt;args&gt;)
+}
+
+##!
+# @brief
+# @type state-elaboration
+#
+# automatically copy any arguments from the superoperator to the local state
+sp {elaborate*state*operator-args
+   (state &lt;s&gt; ^superstate.operator.&lt;att&gt; &lt;val&gt;
+              ^args &lt;args&gt;)
+--&gt;
+   (&lt;args&gt; ^&lt;att&gt; &lt;val&gt;)
+}</pre>
+</div></div><p>For example (executable example <a href="attachments/32178644/32866341.soar">here</a>):</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;propose*my-goal
+   (state &lt;s&gt; ^superstate nil
+             -^result)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name my-goal
+        ^value1 4
+        ^value2 5
+        ^result-id &lt;s&gt;
+        ^result-attr result)
+&quot;
+
+sp &quot;my-goal*propose*add
+   (state &lt;s&gt; ^name my-goal
+              ^args &lt;args&gt;)
+   (&lt;args&gt; ^value1 &lt;value1&gt;
+           ^value2 &lt;value2&gt;
+           ^result-id &lt;id&gt;
+           ^result-attr &lt;attr&gt;)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name add
+        ^value1 &lt;value1&gt;
+        ^value2 &lt;value2&gt;
+        ^result-id &lt;id&gt;
+        ^result-attr &lt;attr&gt;)
+&quot;
+ 
+sp &quot;my-goal*apply*add
+   (state &lt;s&gt; ^name my-goal
+              ^operator &lt;o&gt;)
+   (&lt;o&gt; ^name add
+        ^value1 &lt;value1&gt;
+        ^value2 &lt;value2&gt;
+        ^result-id &lt;id&gt;
+        ^result-attr &lt;attr&gt;)
+--&gt;
+   (&lt;id&gt; ^&lt;attr&gt; (+ &lt;value1&gt; &lt;value2&gt;))
+&quot;</pre>
+</div></div><p>Note in this example, the result-id and result-attr can be used to return a result to the my-goal superstate from the do-something-complex substate. It will not be obvious that the rule returning the result is modifying the superstate, since it won't directly test it. This is flexible, but may make the code harder to follow.</p><p>For NGS goals, you can do something similar, either using tags or adding WMEs directly to the goal structure. Here's an example using tags (executable example <a href="attachments/32178644/32866342.soar">here</a>):</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;create*my-goal
+   [NGS_match-goalpool &lt;goals&gt; &lt;s&gt;]
+  -(&lt;s&gt; ^result)
+--&gt;
+   [NGS_create-goal &lt;goals&gt; my-goal &lt;g&gt; &lt;gtags&gt;]
+   [NGS_tag &lt;gtags&gt; value1 4]
+   [NGS_tag &lt;gtags&gt; value2 5]
+   [NGS_tag &lt;gtags&gt; result-id &lt;s&gt;]
+   [NGS_tag &lt;gtags&gt; result-attr result]
+&quot;
+
+sp &quot;my-goal*propose*add
+   [NGS_match-active-goal my-goal &lt;g&gt; &lt;s&gt;]
+   [NGS_is-tagged &lt;g&gt; value1 &lt;value1&gt;]
+   [NGS_is-tagged &lt;g&gt; value2 &lt;value2&gt;]
+   [NGS_is-tagged &lt;g&gt; result-id &lt;id&gt;]
+   [NGS_is-tagged &lt;g&gt; result-attr &lt;attr&gt;]
+--&gt;
+   [NGS_create-operator add &lt;g&gt; &lt;o&gt;]
+   (&lt;s&gt; ^operator &lt;o&gt; +)
+   (&lt;o&gt; ^name add
+        ^value1 &lt;value1&gt;
+        ^value2 &lt;value2&gt;
+        ^result-id &lt;id&gt;
+        ^result-attr &lt;attr&gt;)
+&quot;
+ 
+sp &quot;my-goal*apply*add
+   [NGS_match-active-goal my-goal &lt;g&gt; &lt;s&gt;]
+   [NGS_match-operator add &lt;o&gt; &lt;g&gt;]
+   (&lt;o&gt; ^value1 &lt;value1&gt;
+        ^value2 &lt;value2&gt;
+        ^result-id &lt;id&gt;
+        ^result-attr &lt;attr&gt;)
+--&gt;
+   (&lt;id&gt; ^&lt;attr&gt; (+ &lt;value1&gt; &lt;value2&gt;))
+&quot;</pre>
+</div></div><h1 id="Generalguidance-AvoidSideEffectsinGoals">Avoid Side Effects in Goals</h1><p>This is another general rule of thumb; in practice, it may be much easier to follow it 90% of the time rather than 100% of the time. Ideally, a subgoal should only return results at the end of its processing. Goals that execute sequences of operators, many of which are returning results, are generally more difficult to follow and also more difficult to maintain – if the goal terminates partway through an expected sequence due to a returned result, is that a bug? It can be hard to tell.</p><p>For example, suppose you have a goal that is going to create a complex structure. The first operator creates the base structure, the second operator adds some stuff to it, the next operator adds more stuff to it, etc. One way to do this would be to directly construct the structure in the supergoal. Thus every operator is returning a result. Generally speaking, it would be better to construct the entire structure in the subgoal, and then return it to the supergoal once it is finished.</p><p>There are exceptions to this rule. Suppose that your goal can be interrupted such that the data structure you're working on could be destroyed (this is common in Michigan-style goals). Maybe it doesn't matter – you'll just make it again. But it could also be that it is either very expensive to create, or you expect to be interrupted constantly such that you'll never finish if you keep starting over, or perhaps the creation process has some side effects that you can't control (e.g., you need to retrieve the next available id from an external system and you don't want to skip any ids). In these cases, returning multiple results makes sense. Still, you might consider restructuring this into multiple goals, each of which does one part of the creation process (it's not clear if that's a good idea in many cases, but it should be considered).</p><p>There may also be situations where you can technically avoid side-effects, but it's a lot of work and/or inefficient. For example, suppose you have a goal that is going to modify several parts of a data structure in a supergoal. You may have separate operators for each part of the structure that is going to be changed, and thus it would be very easy to have each operator fire in sequence to make the modifications – i.e., a result is returned at each step of the process. To avoid this, you could copy the entire data structure in the subgoal, make the modifications, and replace the superstate data structure with the modified one. Indeed, functional programming languages (e.g., clojure) encourage this approach. But if the data structure is large, making a copy could be inefficient. Also, in NGS, other goals may link to parts of a shared data structure, making it difficult or impossible to replace. And there may be parts of the data structure that cannot just be copied (e.g., if it contains LTIs) – any changes to these substructures would be results.</p><p>In summary, I think it's a good idea to try to avoid side effects where practical, as it makes the code easier to understand. But I wouldn't get hung up on if its going to be a big hassle – after all, if you have to write complicated code to achieve this, then it at least partially defeats the purpose of making it easy to understand.</p><h1 id="Generalguidance-Soar&quot;Tricks&quot;">Soar &quot;Tricks&quot;</h1><p>The stuff described here is nothing special to experienced Soar programmers, but may be helpful to new programmers.</p><h2 id="Generalguidance-Whentestingforgreater/lessthan,testforthenegationinstead">When testing for greater/less than, test for the negation instead</h2><p>Suppose you want to create a flag that indicates whether an input value is above 5. You might do something simple like this:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;elaborate*value-above-5
+   (state &lt;s&gt; ^io.input-link.value &gt; 5)
+--&gt;
+   (&lt;s&gt; ^value-above-5 true)
+&quot;</pre>
+</div></div><p>The potential issue here that every time the value changes, the rule will retract. It may immediately re-fire (i.e., if the new value is still above 5), but the value-above-5 wme will go away and immediately come back. This is called blinking. Whether this is a problem depends on your application, but generally speaking, we want to avoid blinking because most of the time it doesn't make conceptual sense, and it can be a performance issue. In the worst case, it can actually prevent your agent from working correctly.</p><p>To understand the conceptual issue, consider a value of 6. The rule will fire, and the flag will be created. Now the value changes to 7. The rule will retract, the flag will go away, then the rule will re-fire and the flag will be re-created. But the value was always above 5, so why did the flag ever go away?</p><p>Now consider if the value is changing frequently, even every cycle. This rule will be constantly retracting and re-firing, as will any rules that depend on the flag. This can result in a performance issue. Furthermore, because rules that depend on the flag will also retract, this could actually prevent the agent from making progress – for example, if a goal keeps getting retracted before the agent can make any progress, only to be immediately re-created.</p><p>To solve the issue, simply negate the test, like this:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;elaborate*value-above-5
+   (state &lt;s&gt; ^io.input-link &lt;il&gt;)
+  -(&lt;il&gt; ^value &lt;= 5)
+--&gt;
+   (&lt;s&gt; ^value-above-5 true)
+&quot;</pre>
+</div></div><p>The way Soar's rete handles negations means that the flag will not blink in this case, so long as the value remains above 5.</p><p>As a side note, blinking is also an important issue in input-link design. For all the same reasons above, whether and when an input WME should blink needs to be carefully considered.</p><h2 id="Generalguidance-Avoidlotsofredundantrulefiringsbymappingmanyobjectsintooneobject">Avoid lots of redundant rule firings by mapping many objects into one object</h2><p>Sometimes you want to do some action if there are any objects in a set. You could do this:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;propose*my-action
+   (state &lt;s&gt; ^objects.object
+             -^my-action-complete true)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; + =)
+   (&lt;o&gt; ^name my-action)
+&quot;</pre>
+</div></div><p>This will propose my-action for every object in the set. One of them will be picked, and presumably the others will go away as a result of whatever the action is. This works, but is inefficient. If there are 100 objects in the set, 100 operators will be proposed, and there will be a noticeable slowdown in the decision procedure. This is even worse if you are testing multiple sets, as you will then get the combinatorial explosion of the two sets.</p><p>Instead, simply create a flag to indicate that there are objects in the set, and then have the operator proposal test that flag. The flag will only be created once since working memory is a set (it will simply be supported by multiple rule instantiations):</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;elaborate*objects-exist
+   (state &lt;s&gt; ^objects.object)
+--&gt;
+   (&lt;s&gt; ^objects-exist true)
+&quot;
+
+sp &quot;propose*my-action
+   (state &lt;s&gt; ^objects-exist true
+             -^my-action-complete true)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; + =)
+   (&lt;o&gt; ^name my-action)
+&quot;</pre>
+</div></div><p>You might think this is no more efficient – after all, the elaboration rule is going to fire for every object in the set. But this is far more efficient than firing a rule that proposes an operator for every object and then making the decision procedure process all of the proposed operators. The decision procedure is not very sophisticated: it essentially cycles through the list of proposed operators repeatedly, throwing things out due to preferences when possible, and ultimately impassing or making a random decision. If the list of proposed operators is long, it will be slow to cycle through that long list multiple times.</p><p>This trick can also be useful for reducing the partial match cost of rules: if two sets are being crossed in a way that generates lots of partial matches (which is slow and takes lots of memory), it may be possible to map one of those sets into a flag and test that instead.</p><h1 id="Generalguidance-Commonutilitycode">Common utility code</h1><p>There is certain code that is very common across many agents. Many of the examples in this guide assume it is already loaded.</p><ul><li><a href="Soar-Utility-code_32179058.html">Soar Utility code</a></li><li><a href="Tcl-Utility-code_32178566.html">Tcl Utility code</a></li></ul>
+                    </div>
+
+                                        <div class="pageSection group">
+                        <div class="pageSectionHeader">
+                            <h2 id="attachments" class="pageSectionTitle">Attachments:</h2>
+                        </div>
+
+                        <div class="greybox" align="left">
+                                                            <img src="images/icons/bullet_blue.gif" height="8" width="8" alt=""/>
+                                <a href="attachments/32178644/32866336.soar">test-goal-name-in-apply-rules-michigan-style.soar</a> (application/octet-stream)
+                                <br/>
+                                                            <img src="images/icons/bullet_blue.gif" height="8" width="8" alt=""/>
+                                <a href="attachments/32178644/32866337.soar">test-goal-name-in-apply-rules-ngs.soar</a> (application/octet-stream)
+                                <br/>
+                                                            <img src="images/icons/bullet_blue.gif" height="8" width="8" alt=""/>
+                                <a href="attachments/32178644/32866339.soar">treat-operator-like-function-call1.soar</a> (application/octet-stream)
+                                <br/>
+                                                            <img src="images/icons/bullet_blue.gif" height="8" width="8" alt=""/>
+                                <a href="attachments/32178644/32866340.soar">treat-operator-like-function-call2.soar</a> (application/octet-stream)
+                                <br/>
+                                                            <img src="images/icons/bullet_blue.gif" height="8" width="8" alt=""/>
+                                <a href="attachments/32178644/32866341.soar">treat-goal-like-function-call-michigan-style.soar</a> (application/octet-stream)
+                                <br/>
+                                                            <img src="images/icons/bullet_blue.gif" height="8" width="8" alt=""/>
+                                <a href="attachments/32178644/32866342.soar">treat-goal-like-function-call-ngs.soar</a> (application/octet-stream)
+                                <br/>
+                                                    </div>
+                    </div>
+                    
+                 
+                </div>             </div> 
+            <div id="footer">
+                <section class="footer-body">
+                    <p>Document generated by Confluence on May 05, 2015 16:08</p>
+                </section>
+            </div>
+        </div>     </body>
+</html>

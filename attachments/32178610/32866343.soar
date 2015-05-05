@@ -1,0 +1,35 @@
+#
+# Example code
+#
+
+sp "create-constants
+   (state <s> ^superstate nil
+              ^io <io>)
+   (<io> ^input-link <il>
+         ^output-link <ol>)
+-->
+   (<s> ^constants <c>)
+   (<c> ^max-speed 50.0
+        ^color-red red
+        ^color-blue blue
+        ^ilink <il>
+        ^olink <ol>)
+"
+ 
+sp "create-command*notify*max-speed-exceeded
+   (state <s> ^constants <c>)
+   (<c> ^ilink.vehicle.speed > <max>
+        ^max-speed <max>
+        ^olink <ol>)
+-->
+   (<ol> ^notify.max-speed-exceeded true)
+   (write (crlf) |Reporting max speed exceeded|)
+   (interrupt)
+"
+
+# fake some input
+sp "create-input
+   (state <s> ^constants.ilink <il>)
+-->
+   (<il> ^vehicle.speed 100.0)
+"

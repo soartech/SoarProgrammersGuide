@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Bob Marinier : controlling access to shared resources</title>
+        <link rel="stylesheet" href="styles/site.css" type="text/css" />
+        <META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    </head>
+
+    <body class="theme-default aui-theme-default">
+        <div id="page">
+            <div id="main" class="aui-page-panel">
+                <div id="main-header">
+                    <div id="breadcrumb-section">
+                        <ol id="breadcrumbs">
+                            <li class="first">
+                                <span><a href="index.html">Bob Marinier</a></span>
+                            </li>
+                                                    <li>
+                                <span><a href="31654126.html">Soar Programmer&#39;s Guide</a></span>
+                            </li>
+                                                </ol>
+                    </div>
+                    <h1 id="title-heading" class="pagetitle">
+                                                <span id="title-text">
+                            Bob Marinier : controlling access to shared resources
+                        </span>
+                    </h1>
+                </div>
+
+                <div id="content" class="view">
+                    <div class="page-metadata">
+                                                Added by  bob.marinier , edited by  bob.marinier  on Apr 13, 2015
+                    </div>
+                    <div id="main-content" class="wiki-content group">
+                    <h1 id="controllingaccesstosharedresources-Introduction">Introduction</h1><p>Sometimes a system needs to control access to shared resources. For example, Soar's episodic and semantic memory can only have one query at a time – e.g., if two different goals put queries on the same semantic memory link at the same time, the result will be a bad command. There may be some data structure in working memory that you need to ensure will not change until some goal has finished with it. In either case, the agent needs a way to ensure that its processing will be uninterrupted by something else.</p><p>This issue is most common in NGS systems, which have many active goals at once, but can also arise in Michigan style systems (although it is probably very rare as there is only one goal stack active at a time). In NGS systems, the goals are often operating independently of each other, and thus aren't coordinating over who gets access to resources, which can lead to collisions (which probably aren't even detected and simply result in bad behavior or a stuck agent). In Michigan style approaches, it can also happen that some goal is using a shared resource, and then gets interrupted by something else which may want to take over that resource (most likely a special data structure).</p><p>There are at least a couple approaches:</p><ul><li>Mutexes (to mark a structure as in-use)</li><li>Substates (to prevent any other operators from executing)</li></ul><h1 id="controllingaccesstosharedresources-Approach1:Mutexes">Approach 1: Mutexes</h1><p>Soar doesn't have a built-in mutex, but you can create one on your own. The key is that there is nothing other than convention enforcing the mutex – if someone writes code to access the shared structure without getting ownership of the mutex, things will still break.</p><p>Here's an example of creating and using a mutex to control access to a data structure (the mutex is implemented here as a structure with an owner):</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;my-goal*propose*obtain-access
+   [NGS_match-active-goal my-goal &lt;goal&gt; &lt;s&gt;]
+   (state &lt;s&gt; ^restricted-data-mutex &lt;m&gt;)
+  -(&lt;m&gt; ^owner)
+--&gt;
+   [NGS_create-operator obtain-access &lt;goal&gt; &lt;o&gt;]
+   (&lt;o&gt; ^restricted-data-mutex &lt;m&gt;)
+&quot;
+
+sp &quot;my-goal*apply*obtain-access
+   [NGS_match-active-goal my-goal &lt;goal&gt; &lt;s&gt;]
+   [NGS_match-operator obtain-access &lt;o&gt; &lt;goal&gt;]
+   (&lt;o&gt; ^restricted-data-mutex &lt;m&gt;)
+--&gt;
+   (&lt;m&gt; ^owner &lt;goal&gt;)
+&quot;
+
+sp &quot;my-goal*propose*use-restricted-data
+   [NGS_match-active-goal my-goal &lt;goal&gt; &lt;s&gt;]
+   (state &lt;s&gt; ^restricted-data-mutex &lt;m&gt;)
+   (&lt;m&gt; ^owner &lt;goal&gt;)
+--&gt;
+   # do something
+&quot;
+
+sp &quot;my-goal*propose*release-access
+   [NGS_match-active-goal my-goal &lt;goal&gt; &lt;s&gt;]
+   (state &lt;s&gt; ^restricted-data-mutex &lt;m&gt;)
+   (&lt;m&gt; ^owner &lt;goal&gt;)
+   # other conditions met
+--&gt;
+   [NGS_create-operator release-access &lt;goal&gt; &lt;o&gt;]
+   (&lt;o&gt; ^restricted-data-mutex &lt;m&gt;)
+&quot;
+sp &quot;my-goal*apply*release-access
+   [NGS_match-active-goal my-goal &lt;goal&gt; &lt;s&gt;]
+   [NGS_match-operator release-access &lt;o&gt; &lt;goal&gt;]
+   (&lt;o&gt; ^restricted-data-mutex &lt;m&gt;)
+   (&lt;m&gt; ^owner &lt;goal&gt;)
+--&gt;
+   (&lt;m&gt; ^owner &lt;goal&gt; -)
+&quot;
+
+sp &quot;assert*restricted-data-mutex*multiple-owners
+   (state &lt;s&gt; ^restricted-data-mutex.owner &lt;o1&gt; {&lt;o2&gt; &lt;&gt; &lt;o1&gt;})
+--&gt;
+   (write (crlf) |ERROR: restricted-data-mutex has multiple owners: |&lt;o1&gt;| and |&lt;o2&gt;)
+   (interrupt)
+&quot;</pre>
+</div></div><p>This basically checks to see if the mutex is available, and grabs it if possible. Since we're using operators to do this, even if many goals try to grab it at once, only one will succeed. Note that it's up to the programmer to remember to get the mutex and to check that the goal has the mutex before doing things with the restricted data. I've added an &quot;assert&quot; rule to at least catch errors where multiple goals try to grab the mutex, but this hardly catches everything. This pattern could probably be wrapped up in a set of more general Tcl macros if desired.</p><h1 id="controllingaccesstosharedresources-Approach2:Usearchitecturalsubgoals">Approach 2: Use architectural subgoals</h1><p>The reason why this issue is rare in Michigan style goals is because typically only one goal is active at once. That is, Michigan style is always using architectural goals. But there's no reason why this can't be done in an NGS system as well. Indeed, the effect of an architectural subgoal in an NGS system is to force the agent to stop interleaving operators at the top level – in essence, to stop processing on all other goals. This makes it safe for the agent to do whatever protected processing it needs to in the architectural subgoal without worrying about some other goal jumping in and screwing things up. Even if many goals simultaneously propose operators to access the restricted data, only one will win, and when it impasses, the others will be forced to wait.</p><p>Here's an example of using an architectural subgoal to access restricted data (this assumes the rules that copy operator arguments down to subgoals from <a href="General-guidance_32178644.html">General guidance</a> are loaded):</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;my-goal*propose*obtain-access
+   [NGS_match-active-goal my-goal &lt;goal&gt; &lt;s&gt;]
+   (state &lt;s&gt; ^restricted-data &lt;data&gt;)
+   # other conditions
+--&gt;
+   [NGS_create-operator obtain-access &lt;goal&gt; &lt;o&gt;]
+   (&lt;o&gt; ^restricted-data &lt;data&gt;)
+&quot;
+
+# no apply rule, so will impasse
+
+sp &quot;my-goal*propose*use-restricted-data
+   (state &lt;s&gt; ^name obtain-access
+              ^args.restricted-data &lt;data&gt;)
+--&gt;
+   # do something
+&quot;</pre>
+</div></div><p>In this example, we are assuming that the processing in the architectural subgoal will eventually trigger a change that causes the subgoal to retract. It is also likely that you will want to pass the goal structure down to the subgoal, as it may have data attached to it that you need (especially if this is a generic subgoal).</p><p>The potential downside of this approach is that it locks out ALL other goals, and not just the ones that might interfere with the processing. If the processing is short, this is probably not a big deal. But if it is long, it could mean that the agent is falling behind on other important goals, or becoming unresponsive (e.g., not replying to messages, etc.). On the flip side, since the agent is fully focused on this one goal for the duration of the impasse, this technique could also be used for performance sensitive processing, where the agent needs to finish something as quickly as possible.</p>
+                    </div>
+
+                    
+                 
+                </div>             </div> 
+            <div id="footer">
+                <section class="footer-body">
+                    <p>Document generated by Confluence on May 05, 2015 16:08</p>
+                </section>
+            </div>
+        </div>     </body>
+</html>

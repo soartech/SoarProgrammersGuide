@@ -1,0 +1,64 @@
+#
+# Example code
+#
+
+# this is the generic apply rule for sending a message
+
+sp "apply*send-message
+   (state <s> ^operator <o>
+              ^top-state.io.output-link <ol>)
+   (<o> ^name send-message
+        ^radio-id <rid>
+        ^message <msg>)
+-->
+   (<ol> ^radio-command <rc>)
+   (<rc> ^radio-id <rid>
+         ^transmit <msg>)
+   (write (crlf) |Sending message '|<msg>|' on radio |<rid>)
+"
+
+# this code is specific to some goal that wants to send a message
+
+sp "elaborate*name*my-goal
+   (state <s> ^superstate nil)
+-->
+   (<s> ^name my-goal)
+"
+
+sp "my-goal*propose*send-message
+   (state <s> ^name my-goal)
+   # any other context
+-->
+   (<s> ^operator <o> +)
+   (<o> ^name send-message
+        ^radio-id my-radio
+        ^message |Hello world!|)
+"
+
+sp "stop
+   (state <s> ^io.output-link.radio-command)
+-->
+   (interrupt)
+"
+
+#
+# Supporting utility code
+#
+
+##!
+# @brief If we are in any substate then put a link to the top state
+# @type state-elaboration
+sp {elaborate*state*top-state
+   (state <s> ^superstate.top-state <ts>)
+-->
+   (<s> ^top-state <ts>)
+}
+ 
+##!
+# @brief If we are in the top state, then put a top-state link to itself
+# @type state-elaboration
+sp {elaborate*top-state*top-state
+   (state <s> ^superstate nil)
+-->
+   (<s> ^top-state <s>)
+}

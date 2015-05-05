@@ -1,0 +1,50 @@
+#
+# Example code
+#
+
+sp "elaborate*name*my-goal
+   (state <s> ^superstate nil)
+-->
+   (<s> ^name my-goal)
+"
+
+sp "my-goal*elaborate*default-value*0
+   (state <s> ^name my-goal
+             -^value > 0)
+-->
+   (<s> ^value 0)
+"
+
+sp "my-goal*propose*set-value*17
+   (state <s> ^name my-goal)
+-->
+   (<s> ^operator <o> +)
+   (<o> ^name set-value*17)
+"
+
+sp "my-goal*apply*set-value*17
+   (state <s> ^name my-goal
+              ^operator.name set-value*17)
+-->
+   (<s> ^value 17)
+"
+
+sp "monitor*value-value
+   (state <s> ^value <v>
+             -^value <> <v>)
+-->
+   (write (crlf) |value = |<v>| (and no other value)|)
+"
+
+sp "monitor*value-two-values
+   (state <s> ^value <v1> {<v2> > <v1>})
+-->
+   (write (crlf) |direction = |<v1>| AND |<v2>)
+"
+
+# this is just to prevent a state no-change cascade
+sp "stop
+   (state <s> ^superstate.superstate nil)
+-->
+   (interrupt)
+"

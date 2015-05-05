@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Bob Marinier : constants</title>
+        <link rel="stylesheet" href="styles/site.css" type="text/css" />
+        <META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    </head>
+
+    <body class="theme-default aui-theme-default">
+        <div id="page">
+            <div id="main" class="aui-page-panel">
+                <div id="main-header">
+                    <div id="breadcrumb-section">
+                        <ol id="breadcrumbs">
+                            <li class="first">
+                                <span><a href="index.html">Bob Marinier</a></span>
+                            </li>
+                                                    <li>
+                                <span><a href="31654126.html">Soar Programmer&#39;s Guide</a></span>
+                            </li>
+                                                </ol>
+                    </div>
+                    <h1 id="title-heading" class="pagetitle">
+                                                <span id="title-text">
+                            Bob Marinier : constants
+                        </span>
+                    </h1>
+                </div>
+
+                <div id="content" class="view">
+                    <div class="page-metadata">
+                                                Added by  bob.marinier , edited by  bob.marinier  on Apr 22, 2015
+                    </div>
+                    <div id="main-content" class="wiki-content group">
+                    <h1 id="constants-Introduction">Introduction</h1><p>It is often desirable to define specific values in one place, and then refer to them throughout your code. Most languages provide variables or constants to support this; Soar does not. This can often result in <a href="http://en.wikipedia.org/wiki/Magic_number_%28programming%29#Unnamed_numerical_constants" class="external-link" rel="nofollow">magic numbers or other values</a> scattered throughout the code, making it difficult to understand and maintain.</p><p>Since Soar doesn't provide a native solution to this problem, several approaches have been developed. They include editor support, Soar rules and input system, and Tcl variables. These approaches are not exclusive – a single project could potentially use them all. But most pick one.</p><h1 id="constants-Approach1:EditorSupport">Approach 1: Editor Support</h1><p>VisualSoar* and UM's Soar Editor include an authorable datamap. (As of this writing, a port of the Soar Editor's authorable datamap to Soar IDE is underway.) The datamap allows a programmer to define all the structures that should be allowed in working memory, including legal values (which are effectively constants). The editor checks the rules against the datamap and reports any conditions or actions it finds that appear to be testing or creating WMEs not defined in the datamap. Thus, the datamap supports not only defining constants, but entire datastructures (which is also not directly supported by Soar).</p><p>* Note: please do not use VisualSoar. It is no longer being developed or supported.</p><p>There are some downsides to the existing authorable datamaps:</p><ul><li>Perhaps the biggest complaint is that it is hard to maintain. Every change made to the code has to be reflected in the datamap, or else you will get errors. There are &quot;add to datamap&quot; helpers in Soar Editor, so the situation is at least improved over VisualSoar (where your only option was to generate the entire datamap, which was always a disaster as it didn't handle graph structures properly).</li><li>Part of the reason for the first complaint is that the datamap interface is hard to use. It is a graphical interface that requires awkward keypress+mouse moves to do certain things (e.g., hold ctrl+shift and then click and drag to create a link – or something like that. It's impossible to remember.)</li><li>The datamap file is not source control friendly. If two different people edit the datamap, it is essentially impossible to merge their changes.</li><li>The datamap does not support Tcl that generates Soar code.</li></ul><p>The good news is, these issues are probably fixable given appropriate resources. Some ideas include:</p><ul><li>Replace the graphical UI with a set of text files that the programmer writes. This is much more like standard programming languages, and would solve the editing awkwardness and source control issues.</li><li>Supporting Tcl should be relatively easy – it's basically a matter of running the output of the Tcl through the datamap process rather than the raw file contents.</li><li>The maintenance issue should be lessened by eliminating the awkward UI.</li></ul><h1 id="constants-Approach2:SoarRulesand/orInputSystem">Approach 2: Soar Rules and/or Input System</h1><p>Another approach is to directly represent constants in a &quot;table&quot; in working memory. This table could be created on the input-link by the input system (perhaps driven by a configuration file), or from one or more rules. Rules would then look up the constant values they wanted to use. Note that constants could be locations in working memory, too.</p><p>Here's an example (executable example <a href="attachments/32178610/32866343.soar">here</a>):</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;create-constants
+   (state &lt;s&gt; ^superstate nil
+              ^io &lt;io&gt;)
+   (&lt;io&gt; ^input-link &lt;il&gt;
+         ^output-link &lt;ol&gt;)
+--&gt;
+   (&lt;s&gt; ^constants &lt;c&gt;)
+   (&lt;c&gt; ^max-speed 50.0
+        ^color-red red
+        ^color-blue blue
+        ^ilink &lt;il&gt;
+        ^olink &lt;ol&gt;)
+&quot;
+
+sp &quot;create-command*notify*max-speed-exceeded
+   (state &lt;s&gt; ^constants &lt;c&gt;)
+   (&lt;c&gt; ^ilink.vehicle.speed &gt; &lt;max&gt;
+        ^max-speed &lt;max&gt;
+        ^olink &lt;ol&gt;)
+--&gt;
+   (&lt;ol&gt; ^notify.max-speed-exceeded true)
+&quot;</pre>
+</div></div><p>In this example, we create constants for the speed, enum-like colors, and shortcuts to the input and output links. The second rule shows an example of using the constants table. Of course, the constants table could be built up from separate rules (e.g., maybe related constants are grouped in separate rules). It would also be possible to &quot;namespace&quot; the constants, by creating subsets in the constants structure, although if that gets too carried away, it could result in a lot more typing. As it is, if all you wanted was the input-link, it's not really saving you anything to use the constants table.</p><p>The good thing about this approach is the magic values are in one spot, and thus can be modified in place if necessary, rather than having to change lots of rules throughout the code.</p><p>The downside is there is a (very) slight performance/memory cost due to the extra conditions that need to be matched. The &quot;enum&quot; is nothing more than a naming convention. And if you have a typo in a rule that is trying to use a constant, you won't know until runtime. In my mind, this runtime failure is the biggest issue.</p><p>A note on using the input system. Instead of having a rule create the constants, the input system could just put them on the input-link. This is the only approach discussed here that provides true constants (i.e., they cannot be modified by Soar code). But in practice this has never been an issue.</p><h1 id="constants-Approach3:Tclvariables">Approach 3: Tcl variables</h1><p>Perhaps the best solution is to use Tcl variables. This involves minimal typing, gets you write/load time error detection, and (mostly) avoids performance issues. Here's an example (executable example <a href="attachments/32178610/32866344.soar">here</a>):</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">set maxSpeed 50.0
+set color_red red
+set color_blue blue
+set ilink io.input-link
+set olink io.output-link
+
+sp &quot;create-command*notify*max-speed-exceeded
+   (state &lt;s&gt; ^$ilink.vehicle.speed &gt; $maxSpeed
+              ^$olink &lt;ol&gt;)
+--&gt;
+   (&lt;ol&gt; ^notify.max-speed-exceeded true)
+&quot;</pre>
+</div></div><p>As you can see, this is much less typing, and results in code that is exactly as if you had just typed the constants in directly to the rule. If you use the Soar IDE, errors (e.g., mistyping the name of a Tcl variable) will be detected in the editor as you write the rules. Without the Soar IDE, you will see the errors when you load the rules into an agent, which is still considerably better than having to run the agent and it just not working, which is what you would get with the Soar approach above.</p><p>It does highlight a common issue, though – in this version of the rule, &quot;io&quot; is tested twice, because it's in both the ilink and olink variables. This is a very slight inefficiency, but you can imagine more complex rules testing lots of overlapping structures where this could be a bigger deal. My approach is to generally favor the improved readability and maintainability of using the Tcl variables, and to handle performance issues when they arise (i.e., don't pre-optimize). In this case, the rule could be written to not use the constants. Or an io constant could be introduced, etc.</p><p>Of course, this still doesn't provide true constants (although it's close – the Soar rules still can't modify them, only Tcl code that executes during load). It also is still a very poor-man's enum solution.</p><h2 id="constants-Anoteonenumsand&quot;true&quot;constants">A note on enums and &quot;true&quot; constants</h2><p>I won't get into the details of how to support enums and true constants in Tcl, as I've never had the need. But you can find discussions online if you want to dig into these things. For example:</p><ul><li>Enums: <a href="http://wiki.tcl.tk/1308" class="external-link" rel="nofollow">http://wiki.tcl.tk/1308</a></li><li>Constants: <a href="http://wiki.tcl.tk/1734" class="external-link" rel="nofollow">http://wiki.tcl.tk/1734</a></li></ul><p> </p>
+                    </div>
+
+                                        <div class="pageSection group">
+                        <div class="pageSectionHeader">
+                            <h2 id="attachments" class="pageSectionTitle">Attachments:</h2>
+                        </div>
+
+                        <div class="greybox" align="left">
+                                                            <img src="images/icons/bullet_blue.gif" height="8" width="8" alt=""/>
+                                <a href="attachments/32178610/32866343.soar">constants-using-soar-rules.soar</a> (application/octet-stream)
+                                <br/>
+                                                            <img src="images/icons/bullet_blue.gif" height="8" width="8" alt=""/>
+                                <a href="attachments/32178610/32866344.soar">constants-using-tcl.soar</a> (application/octet-stream)
+                                <br/>
+                                                    </div>
+                    </div>
+                    
+                 
+                </div>             </div> 
+            <div id="footer">
+                <section class="footer-body">
+                    <p>Document generated by Confluence on May 05, 2015 16:08</p>
+                </section>
+            </div>
+        </div>     </body>
+</html>

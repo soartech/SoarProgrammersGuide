@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Bob Marinier : Debugging guidance</title>
+        <link rel="stylesheet" href="styles/site.css" type="text/css" />
+        <META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    </head>
+
+    <body class="theme-default aui-theme-default">
+        <div id="page">
+            <div id="main" class="aui-page-panel">
+                <div id="main-header">
+                    <div id="breadcrumb-section">
+                        <ol id="breadcrumbs">
+                            <li class="first">
+                                <span><a href="index.html">Bob Marinier</a></span>
+                            </li>
+                                                    <li>
+                                <span><a href="31654126.html">Soar Programmer&#39;s Guide</a></span>
+                            </li>
+                                                </ol>
+                    </div>
+                    <h1 id="title-heading" class="pagetitle">
+                                                <span id="title-text">
+                            Bob Marinier : Debugging guidance
+                        </span>
+                    </h1>
+                </div>
+
+                <div id="content" class="view">
+                    <div class="page-metadata">
+                                                Added by  bob.marinier , edited by  bob.marinier  on Apr 13, 2015
+                    </div>
+                    <div id="main-content" class="wiki-content group">
+                    <h1 id="Debuggingguidance-Introduction">Introduction</h1><p>I get questions all the time like, &quot;How can I determine X in Soar?&quot; And the answer is very often, &quot;There's a command for that...didn't you memorize the manual?&quot; Seriously though, it's hard to know which of the 100-ish commands, RHS functions, numerous options, etc. are useful and important until you have some significant experience. Even how to take best advantage of the debuggers is not really documented. So here are some tips that can serve as a quick reference to what I find to be the most useful information.</p><h1 id="Debuggingguidance-Debuggerfeatures">Debugger features</h1><p>The primary CSoar and JSoar debuggers are both Java programs, but they were written independently and thus have different feature sets. Below are some highlights to be aware of. Of course, bugs abound, so some of these features may not seem to work consistently (especially on non-windows platforms) – good thing they're open source so anyone can fix it :)</p><h2 id="Debuggingguidance-CSoardebuggerfeatures">CSoar debugger features</h2><ul><li>In the trace, you can right-click on most things to get a context menu that lists valid options, like printing ids or matches on rules, etc.</li><li>The trace automatically hides information from higher watch levels. E.g., if you run at watch 5, the trace will show the same stuff you see at watch 1, but little &quot;+&quot;s will appear on the left edge of the trace that can be clicked to show the hidden information. The Expand button below the trace gives controls over page and global expand/collapse. This makes it much more practical to run at a higher watch level without getting overwhelmed by the amount of text in the trace.</li><li>The trace can also be filtered via the filters drop-down below and aligned with the right edge of the trace. This lets you have Soar print lots of stuff, but not show it in the debugger unless you want to. The filtered stuff is all retained, just hidden by default. It can be re-enabled at any time to reappear in the trace. This supplements the automatically hidden information from higher levels to keep some things hidden even when that part of the trace is expanded. For example, you might decide that you don't really need to see the WME changes from the watch 5 trace after all (or at least not at the moment), so you can hide that stuff to make the rest of the trace easier to read.</li><li>Ctrl-F gives you a find dialog for searching the trace.</li><li>The tabbed subwindows on the right just execute commands at a specified interval. You can change the commands or intervals or add your own tabs. To change the intervals or add tabs, right-click on the subwindow and select an appropriate option from the submenu. This is really great when debugging a specific issue where the thing you care about always has the same id – you can just print the id contents at some interval (whenever the agent stops is a good default) so you can see how it changes over time. The default commands also give hints about some more advanced usage of some commands, and what some of the most useful commands are.<ul><li>The placement of the windows, tabs, buttons, etc. is fully customizable. You can change the layout via the context menus and save it in a layout file (via the Layout menu). The debugger hasn't changed in years, so your layout files are likely to be good for a long time. If you completely screw things up and want to get back to the default, you can do that via the Layout menu.</li></ul></li><li>You can create your own custom buttons to execute whatever commands you (or change the ones that are there). Right-click on a button to edit or remove it, or right-click on an empty spot on the button bar to add one. This is really great when you are debugging a specific problem and find yourself executing the same sequence of commands repeatedly (e.g., run 497 -d; print n17 -d 2): you can just assign that to a button.</li><li>The picture of the decision cycle lets you change where the agent stops by default. That is, when you do a step, or issue a stop command to a running agent, the agent stops in a specific place in the decision cycle, not just wherever it happens to be at the moment the command is issued. You can change that by clicking on the the picture. Thus, if you're debugging application rules, a good stopping place is after the decision phase. If you're debugging preference rules, a good place is before the decision phase. This picture also shows which phase the agent is current in and how many decision cycles have run so far.</li><li>There are command line options, including support for sourcing a file on startup (just give the name of the file).</li></ul><h2 id="Debuggingguidance-JSoardebuggerfeatures">JSoar debugger features</h2><ul><li>In the trace, you can double-click most things to print them. Right-click gives you a context menu with more options.</li><li>The search box below the trace supports regular expressions. (So if searching for a rule name, you might want to escape the &quot;*&quot;.)</li><li>You can filter the rule list on the right using regular expressions in the filter box below the list.</li><li>You can right-click on a rule in the list to set a breakpoint (this sets :interrupt on that rule; see below for what that does).</li><li>The layout is completely customizable by dragging sub windows around, closing them, and adding them via the View menu. Layouts can be saved via View-&gt;Layout. The default layout appears to be restored whenever the debugger is restarted.</li><li>There are command line options, including support for sourcing a file on startup (just give the name of the file).</li><li>For more information, see: <a href="https://github.com/soartech/jsoar/wiki/JSoarDebugger" class="external-link" rel="nofollow">https://github.com/soartech/jsoar/wiki/JSoarDebugger</a></li></ul><h1 id="Debuggingguidance-Classicdebugging:printing">Classic debugging: printing</h1><p>In virtually any language, the most common form of debugging is by printing stuff as the program runs. Soar is no exception. The standard way of printing stuff to the trace is via the RHS &quot;write&quot; command:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;my-rule
+   (state &lt;s&gt; ^superstate nil)
+   # etc
+--&gt;
+   (write (crlf) |Hello world, my state is |&lt;s&gt;| blah blah|)
+&quot;</pre>
+</div></div><p>The (crlf) command is technically optional, but you will almost always want it as it starts a new line (otherwise your print will be appended to the end of the previous line). Soar uses pipes in the way most languages use quotes – to delimit strings. To insert variables, just close the pipe and put the variable in, then continue with a new pipe if you want. Pipes are actually only necessary if there are spaces in the strings – otherwise you can leave them out.</p><p>(As a side note, I prefer to not put spaces around variables, so that the call looks as close to the actual output as possible. I am probably in the minority on this, with most people preferring to put spaces around variables so the pipes aren't right up against the variables. Soar doesn't care – it ignores whitespace in this case.)</p><p>JSoar has a much more powerful way to print: the log command. Like write, the log command prints to the trace, but it also prints to whatever your underlying logging system is (e.g., log4j, logback, etc.) and supports defining log levels and categories for log statements, so they can be filtered as desired. For example:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;my-rule
+   (state &lt;s&gt; ^superstate nil)
+   # etc
+--&gt;
+   (log my-goal INFO |Hello world, my state is |&lt;s&gt;| blah blah|)
+&quot;</pre>
+</div></div><p>See here for more information on log: <a href="https://github.com/soartech/jsoar/wiki/JSoarLogging" class="external-link" rel="nofollow">https://github.com/soartech/jsoar/wiki/JSoarLogging</a></p><p>If you're using JSoar, I highly recommend using log over write. If you have an agent that you think might need to run on both, you might consider creating a Tcl wrapper so you can switch it in one place. Maybe something like this (plog = portable log):</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">proc plog { category args } {
+   variable plogMode; # write or log
+
+   if { [lsearch [list trace debug info warn error] [string tolower $category] ] == -1 } {
+      set level [lindex $args 0]
+      set args [lrange $args 1 end]
+   } else {
+      set level $category
+      set category &quot;&quot;
+   }
+
+   if { [string equal $plogMode write] } {
+      return &quot;(write (crlf) $args)&quot;
+   } else {
+      return &quot;(log $category $level $args)&quot;
+   }
+}
+
+set plogMode log
+
+sp &quot;test
+   (state &lt;s&gt; ^superstate nil)
+--&gt;
+   [plog INFO |This is a test: |&lt;s&gt;]
+&quot;</pre>
+</div></div><p>This just ignores the log-specific options for write. An even better version of this would automatically detect if its running on CSoar or JSoar (maybe by using the version command), and automatically do the right thing.</p><h2 id="Debuggingguidance-Howtoprintworkingmemory">How to print working memory</h2><p>Sometimes it is useful to have a rule print the contents of some structure in working memory. You can do this via the &quot;cmd&quot; RHS function, which returns the result of a command. You then need to print the output using write or log:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;print
+   (state &lt;s&gt; ^superstate nil)
+--&gt;
+   (write (crlf) |My state: |(cmd print &lt;s&gt; -d 2))
+&quot;
+
+sp &quot;print2
+   (state &lt;s&gt; ^superstate nil)
+--&gt;
+   (log info |My state: |(cmd print &lt;s&gt; -d 2))
+&quot;</pre>
+</div></div><h1 id="Debuggingguidance-Breakpointsandhaltvs.interruptvs.:interrupt">Breakpoints and halt vs. interrupt vs. :interrupt</h1><p>It is sometimes useful to have a rule cause a Soar agent to stop running – for example, you want to inspect what working memory looks like at some point, or why the next operator selected is different that what you expected. In essence, you want to set a breakpoint on a rule.</p><p>Soar has two RHS functions to stop an agent: halt and interrupt. Halt stops the agent and prevents it from running again without doing an init-soar. Interrupt stops the agent but allows it to continue running. In my experience, you almost always want to use interrupt instead of halt. You might think you'll never need to keep running the agent again, so you use halt. Then a situation comes up and you're screwed. Just use interrupt.</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;my-rule
+   (state &lt;s&gt; ^foo bar)
+--&gt;
+   # actions
+   (interrupt)
+&quot;</pre>
+</div></div><p>A potential issue with interrupt (and halt) is that it stops the agent after the calling rule executes – so whatever other changes the rule might make (or other rules firing in parallel make) have already occurred. Often what you want is to inspect the situation before the rule fires (e.g., why is this rule firing and not some other rule). :interrupt does this:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;my-rule
+   :interrupt
+   (state &lt;s&gt; ^foo bar)
+--&gt;
+   # actions
+&quot;</pre>
+</div></div><p>Note that a rule can have multiple :flags on it, so you can use this with rules that already have, e.g., :o-support on it, etc. You can also add this flag at runtime using the pbreak command. The JSoar debugger also lets you do this by right-clicking a rule in the rule list on the right side of the debugger. (As a side note, the related pwatch command doesn't stop Soar but does print when a rule fires – it's basically a more targeted version of watch 4 or watch --productions, which turn on watching for all rules.)</p><h1 id="Debuggingguidance-Asserts">Asserts</h1><p>One way to use interrupts is as asserts. In your code, you might have certain assumptions that you want to make sure you never violate. You can add rules that check these assumptions and interrupt the program with a message if the assumption is violated. For example:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;assert*only-one-object
+   (state &lt;s&gt; ^object &lt;o1&gt; {&lt;o2&gt; &lt;&gt; &lt;o1&gt;})
+--&gt;
+   (log ERROR |Two objects detected; expected one. Objects: |&lt;o1&gt;|, |&lt;o2&gt;)
+   (interrupt)
+&quot;</pre>
+</div></div><p>Notice that I used the RHS interrupt in this case. This is so the message gets printed.</p><p>Another little-known test that is useful for asserts is the &quot;&lt;=&gt;&quot; (same type) test (which Dave Ray nicknamed the spaceship). This lets you check that a value has the correct type:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;assert*expected-float
+   (state &lt;s&gt; ^distance {&lt;d&gt; &lt;=&gt; 1.0})
+--&gt;
+   (log ERROR |Expected distance to be a float; current value is: |&lt;d&gt;)
+   (interrupt)
+&quot;</pre>
+</div></div><p>Note that only the type of argument of the &lt;=&gt; test matters – not the value. The above could just as easily used 0.0 or -123.4. This test can be used to check for any of the standard types: int, float, string, or identifier. It does not distinguish between short-term and long-term identifiers.</p><h1 id="Debuggingguidance-Preferencescommand">Preferences command</h1><p>The preferences command in invaluable understanding what your agent is doing. By default, it just lists the proposed operators, their preferences, and the probability of each getting selected. This is useful enough. But the real power comes with the fact that you can run it on any id/attribute combination and use the --names flag:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">pref s1 ^upper-disk --names
+
+Preferences for S1 ^upper-disk:
+
+acceptables:
+  (S1 ^upper-disk 5)  :I 
+    From towers-of-hanoi*object*disk*elaborate*state*upper-disk
+  (S1 ^upper-disk 4)  :I 
+    From towers-of-hanoi*object*disk*elaborate*state*upper-disk
+  (S1 ^upper-disk 1)  :I 
+    From towers-of-hanoi*object*disk*elaborate*state*upper-disk</pre>
+</div></div><p>This shows the support type of each WME starting with that id/attribute, and the name of the rule(s) that created it. So when you're trying to figure out where the heck that WME came from, this is the command you want to use.</p><h1 id="Debuggingguidance-Whyismyagentsoslow?Thememories,matches,andfiring-countscommands">Why is my agent so slow? The memories, matches, and firing-counts commands</h1><p>There are many reasons why an agent might be running slowly:</p><ul><li>Some rules are firing and retracting way too much</li><li>Some rules have huge match costs</li><li>You are doing slow semantic and/or episodic memory queries.</li><li>You're calling a slow RHS function</li><li>You're connected to an external environment and the I/O processing is slow</li></ul><p>Of course there are other reasons, but this hits the major ones. The last two are really more about optimizing non-Soar code, so I won't discuss them here. The episodic and semantic memory issues are also beyond the scope of this guide (but see the manual for some performance hints). But the first two are things you can investigate within Soar. Indeed, performance issues are often a combination of these two.</p><p>First, we need to explain how matching can be expensive. Soar uses a <a href="http://en.wikipedia.org/wiki/Rete_algorithm" class="external-link" rel="nofollow">rete</a> to do rule matching. I won't get into the details of how it works, but suffice it to say that it matches as many conditions of a rule as possible as soon as possible and maintains this partial match information over time. This allows the rule matching cost be amortized over time, so that the whole match doesn't have to be done at once (or worse, re-done every subphase to check if the rule matches now). The partial match information includes all possible variable bindings (i.e., all ways the rule can possibly match given the current contents of working memory). These possible variable bindings are stored in data structures called tokens. Sometimes rules have conditions that match large sets, which results in a large number of tokens for that condition. Worse, a rule may match on multiple large sets, which results in tokens for the cross-product of all possible ways the objects between the two sets can be matched. This quickly leads to a combinatorial explosion.</p><p>If a moderately expensive rule were to match only once, or rarely, it may be acceptable – it will take a large amount of memory to track all the tokens, but once they are instantiated they are stable and don't really affect the rest of processing. You might notice a slight hiccup when the tokens get instantiated, but that's it. However, some rules are so expensive that even matching a single time is prohibitive – it's rare, but I've seen an agent appear to suddenly stop. Investigating the processes running on the OS revealed that the Soar process was eating memory as fast as possible – eventually it ran out and crashed. Obviously, this is an extreme case.</p><p>The real issue happens when you have an expensive rule that is constantly (partially) matching and unmatching. That is, lots of tokens get created, and then released, and then created again, and released again, over and over. This will cause your program to run slow throughout, and is usually bad.</p><p>To investigate these issues, use the memories, matches, and firing-counts commands.</p><p>Memories with no arguments or a numeric argument will list the rules in the agent and their total token counts (summed across all currently-matching conditions):</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;"># show the top 5 most expensive rules
+memories 5
+
+  145:  towers-of-hanoi*object*disk*elaborate*state*upper-disk
+   43:  towers-of-hanoi*propose*move-disk*disk-to-move*above
+   41:  towers-of-hanoi*object*peg*elaborate*state*clear
+   15:  towers-of-hanoi*desired-of-disk*satisfied
+   11:  apply*move-disk*remove-output</pre>
+</div></div><p>To be clear, 145 is not a lot. Typically you might start getting concerned when it's in the 10's of thousands, but even the low thousands can matter if performance is really critical to your application.</p><p>You can also see the memories for a specific rule, to see which conditions are causing problems by using the matches command:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">matches  towers-of-hanoi*object*disk*elaborate*state*upper-disk
+   1 (state &lt;s&gt; ^name towers-of-hanoi)
+  11 (&lt;s&gt; ^disk &lt;disk&gt;)
+    -{
+      121 (&lt;s&gt; ^holds &lt;h*1&gt;)
+        8 (&lt;h*1&gt; ^above &lt;disk&gt;)
+   3 }
+3 complete matches.</pre>
+</div></div><p>The numbers at the start of each condition are the number of tokens that condition is using. They should add up (close) to the total number reported by the memories command (it may be off by a small number). In this case, we can see that the negated (&lt;s&gt; ^holds &lt;h*1&gt;) condition is responsible for the bulk of the rule's cost.</p><p>Again, a large match cost might only be an issue if it happens repeatedly. The firing-counts (also fc) command tells you how many times various rules have fired in the agent since it was last initialized. It works very similarly to the memories command, taking an optional numeric argument or rule name:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">fc 5
+   11:  towers-of-hanoi*elaborate*state*disk
+   11:  towers-of-hanoi*elaborate*state*holds
+    8:  towers-of-hanoi*monitor*operator-execution*move-disk
+    8:  apply*move-disk*add-output
+    8:  apply*move-disk*record*last-disk-moved
+fc towers-of-hanoi*object*disk*elaborate*state*upper-disk
+    7:  towers-of-hanoi*object*disk*elaborate*state*upper-disk</pre>
+</div></div><p>In this case, the rule has fired multiple times, but does not top the list.</p><p>While I won't discuss it in detail here, there are other tools to help you figure out when your program is running slowly. These can time each decision cycle; combined with a trace, you can tell what part of your program is slowest (both CSoar and JSoar versions are available, although the JSoar one is a little buggy):</p><ul><li>Soar Data Collector: <a href="http://soar.eecs.umich.edu/articles/downloads/agent-development-tools/164-soar-data-collector" class="external-link" rel="nofollow">http://soar.eecs.umich.edu/articles/downloads/agent-development-tools/164-soar-data-collector</a></li></ul><p>So, once you identify a problematic rule, what do you do about it? Well, it mostly depends on the details of your situation. But here's some ideas:</p><ul><li>Rewrite rules to eliminate expensive conditions. Maybe the expensive condition can be broken out into a separate rule that doesn't fire as much.</li><li>Reorder the conditions so that the expensive conditions come later, after most tokens have been eliminated by other conditions. You can try manually re-ordering the conditions, but Soar will generally re-order them anyway. A better approach is to use the multi-attributes command to give Soar hints about how to re-order the conditions. This is often a frustrating exercise, though, as some conditions can't really be re-ordered due to dependencies on other conditions, and thus the command will seem to do nothing.</li><li>Redesign the agent to avoid doing the expensive stuff. Maybe there's a different approach, or the expensive stuff can be moved outside of Soar.</li></ul><p> </p>
+                    </div>
+
+                    
+                 
+                </div>             </div> 
+            <div id="footer">
+                <section class="footer-body">
+                    <p>Document generated by Confluence on May 05, 2015 16:08</p>
+                </section>
+            </div>
+        </div>     </body>
+</html>

@@ -1,0 +1,123 @@
+#
+# Supporting utility code
+#
+
+# You can get NGS here: https://github.com/soartech/new-goal-system
+source "new-goal-system/NewGoalSystem.tcl"
+
+#
+# Example code
+#
+
+# some constants
+
+set ilink io.input-link
+set olink io.output-link
+set radio1 my-radio
+set messageDefaultPriority 1
+
+# this is the generic goal for sending a message. Comments show how they would be contained in multiple files if following the recommendations in the General guidance section.
+
+#
+# achieve-send-message/send-message.soar
+#
+
+# Once we are in the achieve-send-message subgoal, propose the send message operator
+# Then elaborate on the priority (either as provided or a default)
+# Finally apply the operator
+
+sp "achieve-send-message*propose*send-message
+   [NGS_match-active-goal achieve-send-message <g> <s>]
+   [NGS_is-not-tagged <g> message-sent true]
+   [NGS_is-tagged <g> message <msg>]
+-->
+   [NGS_create-operator send-message <g> <o>]
+   (<o> ^message <msg>)
+"
+
+sp "achieve-send-message*elaborate*send-message*priority
+   [NGS_match-active-goal achieve-send-message <g> <s>]
+   [NGS_match-proposed-operator send-message <o>]
+   [NGS_is-tagged <g> priority <pri>]
+-->
+   (<o> ^priority <pri>)
+"
+
+sp "achieve-send-message*elaborate*send-message*default-priority
+   [NGS_match-active-goal achieve-send-message <g> <s>]
+   [NGS_match-proposed-operator send-message <o>]
+   [NGS_is-not-tagged <g> priority]
+-->
+   (<o> ^priority $messageDefaultPriority)
+"
+
+sp "achieve-send-message*apply*send-message
+   [NGS_match-active-goal achieve-send-message <g> <s>]
+   [NGS_match-operator send-message <o> <g>]
+   (<g> ^tags <gtags>)
+   (<o> ^message <msg>
+        ^priority <pri>)
+   (<s> ^$olink <ol>)
+-->
+   (<ol> ^radio-command <rc>)
+   (<rc> ^radio-id $radio1
+         ^transmit <msg>
+         ^priority <pri>)
+   [NGS_tag <gtags> message-sent true]
+   (write (crlf) |Sending message '|<msg>|' on radio $radio1 with priority |<pri>)
+"
+
+#
+# achieve-send-message/return-result.soar
+#
+
+# this creates whatever result the caller asked for
+# the intention is that this triggers the retraction of this goal
+sp "achieve-send-message*propose*return-result
+   [NGS_match-active-goal achieve-send-message <g> <s>]
+   [NGS_is-tagged <g> message-sent true]
+   [NGS_is-tagged <g> result-id <id>]
+   [NGS_is-tagged <g> result-attr <attr>]
+   [NGS_is-tagged <g> result-val <val>]
+-->
+   [NGS_create-operator return-result <g> <o>]
+   (<o> ^result-id <id>
+        ^result-attr <attr>
+        ^result-val <val>)
+"
+sp "achieve-send-message*apply*return-result
+   [NGS_match-active-goal achieve-send-message <g> <s>]
+   [NGS_match-operator return-result <o> <g>]
+   (<o> ^result-id <id>
+        ^result-attr <attr>
+        ^result-val <val>)
+-->
+   (<id> ^<attr> <val>)
+"
+
+# this code is specific to some goal that wants to send a message
+
+sp "create-goal*my-goal
+   [NGS_match-goalpool <goals>]
+-->
+   [NGS_create-goal <goals> my-goal <g>]
+"
+
+sp "my-goal*create-subgoal*achieve-send-message
+   [NGS_match-active-goal my-goal <g> <s>]
+   [NGS_match-goalpool <goals>]
+  -(<s> ^message-sent true)
+   # any other context
+-->
+   [NGS_create-subgoal <goals> achieve-send-message <g> <sg> <sgtags>]
+   [NGS_tag <sgtags> message "|Hello world!|"]
+   [NGS_tag <sgtags> result-id <s>]
+   [NGS_tag <sgtags> result-attr message-sent]
+   [NGS_tag <sgtags> result-val true]
+"
+
+sp "stop
+   (state <s> ^io.output-link.radio-command)
+-->
+   (interrupt)
+"

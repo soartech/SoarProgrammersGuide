@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Bob Marinier : disappearing input</title>
+        <link rel="stylesheet" href="styles/site.css" type="text/css" />
+        <META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    </head>
+
+    <body class="theme-default aui-theme-default">
+        <div id="page">
+            <div id="main" class="aui-page-panel">
+                <div id="main-header">
+                    <div id="breadcrumb-section">
+                        <ol id="breadcrumbs">
+                            <li class="first">
+                                <span><a href="index.html">Bob Marinier</a></span>
+                            </li>
+                                                    <li>
+                                <span><a href="31654126.html">Soar Programmer&#39;s Guide</a></span>
+                            </li>
+                                                </ol>
+                    </div>
+                    <h1 id="title-heading" class="pagetitle">
+                                                <span id="title-text">
+                            Bob Marinier : disappearing input
+                        </span>
+                    </h1>
+                </div>
+
+                <div id="content" class="view">
+                    <div class="page-metadata">
+                                                Added by  bob.marinier , edited by  bob.marinier  on Apr 09, 2015
+                    </div>
+                    <div id="main-content" class="wiki-content group">
+                    <h1 id="disappearinginput-Introduction">Introduction</h1><p>Most interesting systems have dynamic input on the input-link. This means that information is only available for a finite time before it disappears. Sometimes this is no problem – once the data is gone, there's no need to reason about it anymore. But in other cases, we may want to finish whatever processing was already started (or perhaps still pending). A common case is messages: a message arrives on the input-link, but in an effort to prevent messages from building up arbitrarily, they only stay for a short time (e.g., 100 decision cycles). Every message must be processed, so if it disappears before we can finish processing, we have a problem.</p><p>There are several possible approaches, including:</p><ul><li>Prioritizing processing so it completes within the time limit</li><li>Copying the data to main working memory</li><li>Giving the agent explicit control over when things are removed from the input-link</li><li>Using episodic and semantic memory to recall the messages in the future</li></ul><p>Throughout the discussion I will assume we are processing messages that will only stay on the input-link a short time. Of course, the approaches could apply to any kind of data.</p><h1 id="disappearinginput-Approach1:Prioritizeprocessing">Approach 1: Prioritize processing</h1><p>The basic idea here is that when something important shows up, we drop everything else and process it as quickly as possible before it disappears. This is typically accomplished by proposing operators with best preference.</p><p>The thing I don't like about this approach is it doesn't actually guarantee that the processing will happen in time. Lots of important data could show up at once, or the amount of processing needed could exceed the time the data will be available (e.g., if it's sensor data that changes every cycle, this won't work). It may also not be practical to immediately drop whatever else is going on. Finally, it may actually be difficult to ensure it's the highest priority operator (e.g., if you have other best operators already proposed, you may need better preferences to make this processing more important than that processing – this issue is common in NGS systems).</p><p>That said, if you are in an environment that doesn't have any of these issues, then this approach may be the simplest.</p><h1 id="disappearinginput-Approach2:Copydatatomainworkingmemory">Approach 2: Copy data to main working memory</h1><p>The basic idea here is that we make a persistent copy of the data we care about, and then process the copy. Thus, we are no longer beholden to whatever restrictions the input-link might put on us. It is still important to copy the data as soon as possible, but then it can be processed at any time. Of course, the agent is then responsible for cleaning up the copy.</p><p>There are a few basic ways to initiate copying: propose an operator, piggyback on an operator, or :o-support. Proposing an operator is more in line with &quot;canonical&quot; Soar (i.e., how John Laird would prefer to do it). But just like prioritizing processing, it means interrupting whatever else you have going on, which could be inconvenient.</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;propose*copy-message
+   (state &lt;s&gt; ^io.input-link.messages.message &lt;m&gt;)
+  -(&lt;m&gt; ^processed)
+--&gt;
+   (&lt;s&gt; ^operator &lt;o&gt; + &gt;)
+   (&lt;o&gt; ^name copy-message)
+&quot;</pre>
+</div></div><p>Piggy-backing on an existing operator is another approach. Just have an apply rule that will apply with any operator. The potential issue here is that there may not be any operators at the moment to piggyback on.</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;apply*copy-message
+   (state &lt;s&gt; ^operator &lt;o&gt;)
+--&gt;
+   # copy message
+&quot;</pre>
+</div></div><p>:o-support is generally considered a &quot;hack&quot;, but in this case it's very useful for performing a copy at the next apply phase without interrupting whatever else is going on (unlike piggybacking, it will work even if there is no selected operator).</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;copy-message
+   :o-support
+   (state &lt;s&gt; ^io.input-link.messages.message &lt;m&gt;)
+--&gt;
+   # copy message
+&quot;</pre>
+</div></div><p>Because it's the most practical, the remaining examples in this subsection will use :o-support.</p><p>There are also at least a few ways to perform the copy: generic Soar rules, custom Soar rules, and deep-copy.</p><p>Generic Soar rules essentially copy everything up to some depth. The problem is that additional rules are needed for every level you want to copy, so there is no fully generic solution. The selection space code that comes with Soar supports copying specified structures up to two levels deep. Here's an example of how to copy everything at one level in a generic way:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;copy-message*part-1
+   :o-support
+   (state &lt;s&gt; ^io.input-link.messages.message &lt;m&gt;)
+--&gt;
+   (&lt;s&gt; ^message &lt;mc&gt;)
+   (&lt;mc&gt; ^orig &lt;m&gt;)
+&quot;
+
+sp &quot;copy-message*part-2
+   :o-support
+   (state &lt;s&gt; ^io.input-link.messages.message &lt;m&gt;
+              ^message &lt;mc&gt;)
+   (&lt;mc&gt; ^orig &lt;m&gt;)
+  -(&lt;m&gt; ^processed)
+   (&lt;m&gt; ^&lt;attr&gt; &lt;val&gt;)
+--&gt;
+   (&lt;mc&gt; ^&lt;attr&gt; &lt;val&gt;)
+&quot;</pre>
+</div></div><p>This uses two rules: one to create a base message, and another to copy all the attribute/values at the first level. Any deeper levels will just be links back to the input-link. I linked the copy to the original message so I could tell which message the copy went with (which could be important if there were lots of messages to copy at once). That link will go away when the input-link message goes away, but it doesn't matter since it's only needed to make the copy. Adding rules for additional levels or adding support for copying only some attributes is a pain and thus left as an exercise to the reader (i.e., don't do it this way; see the selection space rules if you're curious).</p><p>Another approach is simply to use rules specific to the structure you want to copy. In the message case, if different messages have different structures, we would create separate copy rules for each. The nice thing about this approach is it gives you full control over what gets copied (as you may not want everything). It also gives you the opportunity to transform the data into a different structure if desired. In general, it may take many rules to copy a complex structure that has optional parts. Here's a simple example:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;copy-message
+   :o-support
+   (state &lt;s&gt; ^io.input-link.messages.message &lt;m&gt;)
+   (&lt;m&gt; ^sender &lt;sender&gt; ^receiver &lt;receiver&gt; id &lt;id&gt; ^message &lt;msg&gt;)
+--&gt;
+   (&lt;s&gt; ^message &lt;mc&gt;)
+   (&lt;mc&gt; ^sender &lt;sender&gt; ^receiver &lt;receiver&gt; ^id &lt;id&gt; ^message &lt;msg&gt;)
+&quot;</pre>
+</div></div><p>Finally, there's the deep-copy RHS function. John Laird considers all RHS functions to be hacks, but in practice it's very convenient and is the approach I generally recommend. For example:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;copy-message
+   :o-support
+   (state &lt;s&gt; ^io.input-link.messages.message &lt;m&gt;)
+--&gt;
+   (&lt;s&gt; ^message (deep-copy &lt;m&gt;))
+&quot;</pre>
+</div></div><p>There are some potential dangers with deep-copy: it will copy everything it can get to, which in the worst case means all of working memory. For large structures, it can be expensive; if you actually only need a small part of a large structure, you might consider writing specific rules just to get the part you care about. Maybe someday someone will take the time to write a more configurable version of deep-copy that lets you control the depth of the copy and the attributes to copy, but at the moment it only works one way. Note that it works on looping structures just fine.</p><p>Finally, note that because :o-support and deep-copy can copy entire structures immediately, it is common for systems to only leave the messages on the input-link for just 1 decision cycle. After all, they aren't needed after that.</p><h1 id="disappearinginput-Approach3:Givetheagentcontrolovertheinput-link">Approach 3: Give the agent control over the input-link</h1><p>Another powerful approach is to let the agent control when things are removed from the input-link, or when parts of the input-link update. This is typically accomplished via output commands. The advantage of this approach is there's no need to make a copy – thus, it is generally more efficient.</p><p>For example, we might have a remove-message command that takes the id of a message to remove:</p><div class="code panel pdl" style="border-width: 1px;"><div class="codeContent panelContent pdl">
+<pre class="theme: Confluence; brush: java; gutter: true" style="font-size:12px;">sp &quot;remove-processed-message
+   (state &lt;s&gt; ^io &lt;io&gt;)
+   (&lt;io&gt; ^input-link.messages.message &lt;m&gt;
+         ^output-link &lt;ol&gt;)
+   (&lt;m&gt; ^id &lt;id&gt;
+        ^processed true)
+--&gt;
+   (&lt;ol&gt; ^remove-message.id &lt;id&gt;)
+&quot;</pre>
+</div></div><p>This could have been done with an operator, but there's no need – when the message is removed, the command to remove it will also be removed. Automagic cleanup!</p><p>Another more complex case where agent control has been used is in sensor processing. The sensor values may update 10 times per second, but the agent needs more time than that to process the data. Thus, we simply gave the agent a command it could use to update the sensor data – the most recent data was then provided, with any intermediate data thrown out. In our case this was ok, since the sensors generally don't change much from moment to moment. But of course, if something important came up, the agent would be blind to it until it allowed the input-link to update again. Thus, we actually had two copies of the sensor data on the input-link: one which updated constantly, and another which was a &quot;snapshot&quot; that the agent could update at any time, but would otherwise remain static. Thus, the agent could monitor the updating data for anything critical, but work off of the snapshot. In essence, we moved the copy function outside of Soar. This worked, but in the end it may have been more expensive to keep two copies of all the data on the input-link than it would have to just copy the parts we cared about. Of course, other variations are possible – maybe agent could register for critical data changes it would care about, and just get notified of those. Then there would be no need to keep a complete updating copy of everything on the input-link. Clearly, this is an area that needs more exploration and the best approach may depend on domain-specific needs.</p><h1 id="disappearinginput-Approach4:Useepisodicorsemanticmemory">Approach 4: Use episodic or semantic memory</h1><p>This subsection is completely speculation, as I've never actually done this.</p><p>Episodic memory can be configured to record the input-link on every cycle. Thus, in principle, you can use episodic memory to make a copy of whatever data you want. For example, when you see a new message on the input-link, it should already be stored in episodic memory (or about to be stored). So you can simply retrieve the most recent episodic memory and work off of the message in the memory, thus freeing you from any constraints on the input-link, just like all of our various copy methods above. There's no need to rush to copy anything or process anything as the data will always be available.</p><p>In the case that multiple messages are coming in, you will still need some way to make sure you process them all, and if episodes are being recorded every cycle, simply looking at every episode will not work, as you'll never catch up. But if the messages have sequential numbering, you could keep track of the most recent processed id, and then simply query episodic memory for the next id. You could also simply immediately copy the ids that need to be processed using any of the techniques above, and use them to retrieve the episode later.</p><p>For efficiency, you will probably want to specify a filter on the episodic retrieval so you only get the messages you want to process, and not the entire top-state.</p><p>Semantic memory could be used as a form of copying. Essentially, whenever a message shows up, store it in semantic memory. (If the structures are deep, you will want to turn mirroring on so the entire substructure gets stored.) This could even be done with a simple elaboration rule, so there's no need to mess around with operators or :o-support. You can then retrieve any unprocessed message at your leisure. The potential downsides are that retrieving deep structures can be a pain (consider writing a reusable subgoal for that), and possibly even slow as it takes a separate operator for each level of each substructure. It can also cause lots of LTIs to accumulate in semantic memory over time – even if you delete the contents of the messages when you are finished with them, the LTIs are there forever (at least in the current implementation).</p><p>Another potential advantage of both episodic and semantic memory is that their underlying databases can be stored to disk – this means that the agent can be designed to continue processing messages even if it is shutdown and restarted in a new instance, without fear that some message would have been lost.</p>
+                    </div>
+
+                    
+                 
+                </div>             </div> 
+            <div id="footer">
+                <section class="footer-body">
+                    <p>Document generated by Confluence on May 05, 2015 16:08</p>
+                </section>
+            </div>
+        </div>     </body>
+</html>
